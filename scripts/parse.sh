@@ -25,12 +25,12 @@ parse_stdin() {
             .model.display_name // "",
             .model.id // "",
             .session_id // "",
-            (.context_window.used_percentage // 0 | tostring),
+            (.context_window.used_percentage // 0 | round | tostring),
             (.cost.total_cost_usd // 0 | tostring),
             (if .rate_limits.five_hour.resets_at then "true" else "false" end),
-            (.rate_limits.five_hour.used_percentage // 0 | tostring),
+            (.rate_limits.five_hour.used_percentage // 0 | round | tostring),
             (.rate_limits.five_hour.resets_at // 0 | tostring),
-            (.rate_limits.seven_day.used_percentage // 0 | tostring),
+            (.rate_limits.seven_day.used_percentage // 0 | round | tostring),
             (.rate_limits.seven_day.resets_at // 0 | tostring)
         ] | @tsv
     ') || return 1
