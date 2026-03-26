@@ -16,13 +16,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "=== ralph-quotamaxxer/proxy smoke test ==="
+echo "=== quotamaxxer-proxy smoke test ==="
 echo "Data dir: $DATA_DIR"
 
 # Build proxy if no binary specified.
 if [[ -z "$PROXY_BIN" ]]; then
     echo "Building proxy..."
-    PROXY_BIN="$DATA_DIR/ralph-quotamaxxer/proxy"
+    PROXY_BIN="$DATA_DIR/quotamaxxer-proxy"
     (cd "$REPO_DIR/proxy" && go build -o "$PROXY_BIN" .)
 fi
 

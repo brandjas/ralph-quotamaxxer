@@ -10,8 +10,8 @@ STATUSLINE_CMD="~/.claude/ralph-quotamaxxer/statusline/statusline.sh"
 # Build proxy binary.
 echo "Building proxy..."
 mkdir -p "$DEST_DIR/bin"
-(cd "$REPO_DIR/proxy" && go build -o "$DEST_DIR/bin/ralph-quotamaxxer/proxy" .)
-echo "Proxy built → $DEST_DIR/bin/ralph-quotamaxxer/proxy"
+(cd "$REPO_DIR/proxy" && go build -o "$DEST_DIR/bin/quotamaxxer-proxy" .)
+echo "Proxy built → $DEST_DIR/bin/quotamaxxer-proxy"
 
 # Copy statusline scripts + wrapper.
 mkdir -p "$DEST_DIR/statusline" "$DEST_DIR/data"

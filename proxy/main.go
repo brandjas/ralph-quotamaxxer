@@ -1,4 +1,4 @@
-// ralph-quotamaxxer/proxy — transparent reverse proxy that extracts rate limit headers.
+// quotamaxxer-proxy — transparent reverse proxy that extracts rate limit headers.
 package main
 
 import (
@@ -154,7 +154,7 @@ func runProxy() {
 		srv.Shutdown(ctx)
 	}()
 
-	log.Printf("ralph-quotamaxxer/proxy listening on %s → %s (data: %s)", actualAddr, upstream, dataDir)
+	log.Printf("quotamaxxer-proxy listening on %s → %s (data: %s)", actualAddr, upstream, dataDir)
 	if err := srv.Serve(ln); err != http.ErrServerClosed {
 		log.Fatalf("serve: %v", err)
 	}

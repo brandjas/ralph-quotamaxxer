@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wrapper.sh — Launch ralph-quotamaxxer/proxy on an OS-assigned port, then exec claude.
+# wrapper.sh — Launch quotamaxxer-proxy on an OS-assigned port, then exec claude.
 #
 # Usage:
 #   quotamaxxer [flags] [-- claude-args...]    Start proxy, optionally guard, then run claude
@@ -16,7 +16,7 @@
 # Without --, all arguments are forwarded to claude as-is.
 set -euo pipefail
 
-PROXY_BIN="${QUOTAMAXXER_PROXY_BIN:-$HOME/.claude/ralph-quotamaxxer/bin/ralph-quotamaxxer/proxy}"
+PROXY_BIN="${QUOTAMAXXER_PROXY_BIN:-$HOME/.claude/ralph-quotamaxxer/bin/quotamaxxer-proxy}"
 DATA_DIR="${QUOTAMAXXER_DATA_DIR:-$HOME/.claude/ralph-quotamaxxer/data}"
 
 if [[ ! -x "$PROXY_BIN" ]]; then

@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash -n scripts/parse.sh 2>&1)",
+      "Bash(bash -n scripts/persist.sh 2>&1)",
+      "Bash(bash -n install.sh 2>&1)",
+      "Bash(git add:*)",
+      "Bash(git stash:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:github.com)",
+      "Read(//home/jasper/.local/share/claude/versions/**)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(docker build:*)",
+      "Bash(docker run:*)",
+      "Bash(git:*)",
+      "Read(//home/jasper/.claude/**)"
+    ]
+  }
+}
