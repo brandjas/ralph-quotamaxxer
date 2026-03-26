@@ -7,10 +7,20 @@ Claude Code doesn't expose rate limit data in headless (`claude -p`) sessions or
 ## Quick start
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/brandjas/ralph-quotamaxxer/main/install-remote.sh | bash
+```
+
+No Go required — downloads a pre-built binary for your platform. Pin a version with `QUOTAMAXXER_VERSION=v0.1.0`.
+
+<details>
+<summary>Install from source (requires Go 1.22+)</summary>
+
+```bash
 git clone https://github.com/brandjas/ralph-quotamaxxer.git
 cd ralph-quotamaxxer
 ./install.sh
 ```
+</details>
 
 Then use `quotamaxxer` instead of `claude`:
 
