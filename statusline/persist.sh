@@ -9,6 +9,7 @@ _build_json() {
     hn=$(hostname)
 
     jq -n \
+        --arg source "statusline" \
         --arg ts_iso "$now_iso" \
         --argjson ts_epoch "$now_epoch" \
         --arg hostname "$hn" \
@@ -24,6 +25,7 @@ _build_json() {
         --argjson limit_7d_resets "$LIMIT_7D_RESETS_AT" \
         --argjson burn_7d "$BURN_7D" \
         '{
+            source: $source,
             timestamp: { iso: $ts_iso, epoch: $ts_epoch },
             hostname: $hostname,
             session_id: $session_id,
@@ -47,8 +49,8 @@ persist_usage() {
     compact=$(printf '%s' "$json" | jq -c .)
 
     # State file: atomic write (no lock needed — last writer wins is acceptable)
-    printf '%s\n' "$json" > "$DATA_DIR/usage-guard.json.tmp" \
-        && mv "$DATA_DIR/usage-guard.json.tmp" "$DATA_DIR/usage-guard.json"
+    printf '%s\n' "$json" > "$DATA_DIR/usage-statusline.json.tmp" \
+        && mv "$DATA_DIR/usage-statusline.json.tmp" "$DATA_DIR/usage-statusline.json"
 
     # History file: locked append + rotation
     if command -v flock &>/dev/null; then

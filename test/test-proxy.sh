@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-proxy.sh — Smoke test: start proxy, fire a trivial Haiku call, verify ratelimits.json.
+# test-proxy.sh — Smoke test: start proxy, fire a trivial Haiku call, verify usage-proxy.json.
 set -euo pipefail
 
 REPO_DIR="$(dirname "$(readlink -f "$0")")/.."
@@ -53,8 +53,8 @@ echo ""
 # Give the async writer a moment.
 sleep 0.5
 
-# Check ratelimits.json.
-RATELIMITS="$DATA_DIR/ratelimits.json"
+# Check usage-proxy.json.
+RATELIMITS="$DATA_DIR/usage-proxy.json"
 if [[ ! -f "$RATELIMITS" ]]; then
     echo "FAIL: $RATELIMITS was not created"
     echo "Contents of data dir:"
@@ -62,28 +62,28 @@ if [[ ! -f "$RATELIMITS" ]]; then
     exit 1
 fi
 
-echo "=== ratelimits.json ==="
+echo "=== usage-proxy.json ==="
 cat "$RATELIMITS"
 echo ""
 
 # Validate JSON structure.
 if ! jq -e '.timestamp' "$RATELIMITS" > /dev/null 2>&1; then
-    echo "FAIL: ratelimits.json missing timestamp field"
+    echo "FAIL: usage-proxy.json missing timestamp field"
     exit 1
 fi
 
 if ! jq -e '.raw_headers | length > 0' "$RATELIMITS" > /dev/null 2>&1; then
-    echo "FAIL: ratelimits.json has no raw_headers"
+    echo "FAIL: usage-proxy.json has no raw_headers"
     exit 1
 fi
 
 if ! jq -e '.source == "proxy"' "$RATELIMITS" > /dev/null 2>&1; then
-    echo "FAIL: ratelimits.json missing source field"
+    echo "FAIL: usage-proxy.json missing source field"
     exit 1
 fi
 
 HEADER_COUNT=$(jq '.raw_headers | length' "$RATELIMITS")
-echo "PASS: ratelimits.json written with $HEADER_COUNT raw headers (source: proxy)"
+echo "PASS: usage-proxy.json written with $HEADER_COUNT raw headers (source: proxy)"
 echo ""
 
 # Show parsed fields.

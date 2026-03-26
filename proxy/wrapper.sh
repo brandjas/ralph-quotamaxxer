@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
 # wrapper.sh — Launch ralph-quotamaxxer/proxy on an OS-assigned port, then exec claude.
-# Usage: wrapper.sh [claude args...]
-#   e.g. wrapper.sh -p "hello"
-#        wrapper.sh          (interactive)
+#
+# Usage:
+#   quotamaxxer [flags] [-- claude-args...]    Start proxy, optionally guard, then run claude
+#   quotamaxxer guard [flags]                  Wait for rate limits, then exit
+#
+# Flags (before --):
+#   --threshold-5h <ratio>   Wait until 5h burn ratio drops below this
+#   --threshold-7d <ratio>   Wait until 7d burn ratio drops below this
+#   --timeout <duration>     Max guard wait time (e.g. 30m, 1h)
+#   --source <src>           Data source: both (default), proxy, statusline
+#   --quiet                  Suppress guard output
+#   --help                   Show help
+#
+# Without --, all arguments are forwarded to claude as-is.
 set -euo pipefail
 
 PROXY_BIN="${QUOTAMAXXER_PROXY_BIN:-$HOME/.claude/ralph-quotamaxxer/bin/ralph-quotamaxxer/proxy}"
@@ -16,7 +27,97 @@ fi
 
 mkdir -p "$DATA_DIR"
 
-# Temp file for the proxy to write its OS-assigned port.
+# --- Argument parsing ---
+# Split on first "--": before = quotamaxxer args, after = claude args.
+# No "--" = all args go to claude.
+QUOTAMAXXER_ARGS=()
+CLAUDE_ARGS=()
+found_separator=false
+
+for arg in "$@"; do
+    if [[ "$found_separator" == false && "$arg" == "--" ]]; then
+        found_separator=true
+        continue
+    fi
+    if [[ "$found_separator" == true ]]; then
+        CLAUDE_ARGS+=("$arg")
+    else
+        QUOTAMAXXER_ARGS+=("$arg")
+    fi
+done
+
+if [[ "$found_separator" == false ]]; then
+    CLAUDE_ARGS=("$@")
+    QUOTAMAXXER_ARGS=()
+fi
+
+# --- Parse quotamaxxer args ---
+THRESHOLD_5H=""
+THRESHOLD_7D=""
+TIMEOUT=""
+SOURCE=""
+QUIET=""
+STANDALONE_GUARD=false
+
+i=0
+while (( i < ${#QUOTAMAXXER_ARGS[@]} )); do
+    case "${QUOTAMAXXER_ARGS[$i]}" in
+        guard)
+            STANDALONE_GUARD=true
+            # Pass remaining args to the guard subcommand.
+            GUARD_ARGS=("${QUOTAMAXXER_ARGS[@]:$((i+1))}")
+            break
+            ;;
+        --threshold-5h)
+            (( i++ )) || true
+            THRESHOLD_5H="${QUOTAMAXXER_ARGS[$i]}"
+            ;;
+        --threshold-7d)
+            (( i++ )) || true
+            THRESHOLD_7D="${QUOTAMAXXER_ARGS[$i]}"
+            ;;
+        --timeout)
+            (( i++ )) || true
+            TIMEOUT="${QUOTAMAXXER_ARGS[$i]}"
+            ;;
+        --source)
+            (( i++ )) || true
+            SOURCE="${QUOTAMAXXER_ARGS[$i]}"
+            ;;
+        --quiet)
+            QUIET=1
+            ;;
+        --help|-h)
+            exec "$PROXY_BIN" help
+            ;;
+        *)
+            echo "quotamaxxer: unknown flag '${QUOTAMAXXER_ARGS[$i]}'" >&2
+            echo "Run 'quotamaxxer --help' for usage." >&2
+            exit 1
+            ;;
+    esac
+    (( i++ )) || true
+done
+
+# --- Standalone guard mode ---
+if [[ "$STANDALONE_GUARD" == true ]]; then
+    GUARD_CMD=("$PROXY_BIN" guard --data-dir "$DATA_DIR")
+    [[ ${#GUARD_ARGS[@]} -gt 0 ]] && GUARD_CMD+=("${GUARD_ARGS[@]}")
+    exec "${GUARD_CMD[@]}"
+fi
+
+# --- Run guard before proxy+claude if thresholds set ---
+if [[ -n "$THRESHOLD_5H" || -n "$THRESHOLD_7D" ]]; then
+    GUARD_CMD=("$PROXY_BIN" guard --data-dir "$DATA_DIR")
+    [[ -n "$THRESHOLD_5H" ]] && GUARD_CMD+=(--threshold-5h "$THRESHOLD_5H")
+    [[ -n "$THRESHOLD_7D" ]] && GUARD_CMD+=(--threshold-7d "$THRESHOLD_7D")
+    [[ -n "$TIMEOUT" ]] && GUARD_CMD+=(--timeout "$TIMEOUT")
+    [[ -n "$SOURCE" ]] && GUARD_CMD+=(--source "$SOURCE")
+    [[ -n "$QUIET" ]] && GUARD_CMD+=(--quiet)
+    "${GUARD_CMD[@]}" || exit $?
+fi
+
+# --- Start proxy ---
 PORT_FILE=$(mktemp)
 
 cleanup() {
@@ -26,7 +127,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Start proxy. Port 0 = OS picks an ephemeral port, writes it to PORT_FILE.
 QUOTAMAXXER_DATA_DIR="$DATA_DIR" QUOTAMAXXER_PORT_FILE="$PORT_FILE" "$PROXY_BIN" 2>/dev/null &
 PROXY_PID=$!
 
@@ -51,4 +151,4 @@ if [[ -z "$PORT" ]]; then
 fi
 
 export ANTHROPIC_BASE_URL="http://127.0.0.1:$PORT"
-exec claude "$@"
+exec claude "${CLAUDE_ARGS[@]}"

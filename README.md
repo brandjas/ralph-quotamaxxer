@@ -27,14 +27,46 @@ alias claude=~/.claude/ralph-quotamaxxer/bin/quotamaxxer
 
 `quotamaxxer` is a drop-in replacement for `claude` — all arguments are forwarded as-is.
 
+## Rate limit guard
+
+The guard pauses execution until your burn rate drops below a threshold. Burn ratio = usage / elapsed fraction of the window. A ratio of 1.0 means on pace to exhaust quota at reset; >1.0 means burning too fast.
+
+**Integrated** — guard before each run:
+
+```bash
+quotamaxxer --threshold-5h 0.8 --threshold-7d 0.9 -- -p "..."
+```
+
+**Standalone** — useful in loops:
+
+```bash
+while true; do
+  quotamaxxer guard --threshold-5h 0.8 --threshold-7d 0.9
+  claude -p "..."
+done
+```
+
+**Flags** (before `--`, or after `guard`):
+
+| Flag | Description |
+|---|---|
+| `--threshold-5h <ratio>` | Wait until 5h burn ratio drops below this |
+| `--threshold-7d <ratio>` | Wait until 7d burn ratio drops below this |
+| `--timeout <duration>` | Max wait time (e.g. `30m`, `1h`). Exit 1 if exceeded. Default: forever |
+| `--source <src>` | Data source: `both` (default), `proxy`, `statusline` |
+| `--quiet` | Suppress waiting output |
+| `--help` | Show help |
+
+Without `--`, all arguments go directly to `claude` (no guard runs). The `--` separator splits quotamaxxer flags from claude arguments.
+
 ## What you get
 
 After each API call, rate limit data is written to `~/.claude/ralph-quotamaxxer/data/`:
 
 | File | Purpose |
 |---|---|
-| `ratelimits.json` | Latest rate limit snapshot (pretty-printed, atomic write) |
-| `usage-guard.json` | Latest session state from the statusline |
+| `usage-proxy.json` | Latest rate limit snapshot from the proxy (pretty-printed, atomic write) |
+| `usage-statusline.json` | Latest session state from the statusline |
 | `usage-history.jsonl` | Append-only history from both sources (auto-rotating at 10 MB) |
 
 In interactive sessions, the statusline also displays model, context usage, cost, and color-coded rate limit percentages with burn rate indicators.
@@ -58,7 +90,13 @@ All via environment variables — no config files:
 ./test/test-proxy.sh
 ```
 
-Builds the proxy, fires a real Haiku call through it, and validates that `ratelimits.json` and `usage-history.jsonl` were written correctly.
+Builds the proxy, fires a real Haiku call through it, and validates that `usage-proxy.json` and `usage-history.jsonl` were written correctly.
+
+```bash
+./test/test-guard.sh
+```
+
+Tests the guard subcommand with synthetic data: low/high utilization, timeout behavior, both file formats, `--source` filtering.
 
 ## History schema
 
@@ -84,11 +122,13 @@ Consumers can filter on `source` for source-specific fields, or ignore it to pro
 
 ## How it works
 
-**Proxy** — A Go reverse proxy (`net/http/httputil.ReverseProxy`) that sits between Claude Code and `api.anthropic.com`. Extracts `anthropic-ratelimit-unified-*` response headers on every response. Writes the latest snapshot to `ratelimits.json` and appends to the shared history. Go standard library only, zero external dependencies.
+**Proxy** — A Go reverse proxy (`net/http/httputil.ReverseProxy`) that sits between Claude Code and `api.anthropic.com`. Extracts `anthropic-ratelimit-unified-*` response headers on every response. Writes the latest snapshot to `usage-proxy.json` and appends to the shared history. Go standard library only, zero external dependencies.
 
-**Statusline** — Bash scripts invoked by Claude Code's statusline mechanism after each assistant message. Reads rate limit data from Claude Code's stdin JSON in interactive sessions, falling back to `ratelimits.json` for headless sessions.
+**Statusline** — Bash scripts invoked by Claude Code's statusline mechanism after each assistant message. Reads rate limit data from Claude Code's stdin JSON in interactive sessions, falling back to `usage-proxy.json` for headless sessions.
 
-**Wrapper** — The `quotamaxxer` script manages the proxy lifecycle: binds to `:0` for an OS-assigned ephemeral port, starts the proxy in the background, reads the assigned port back via a temp file, then `exec`s `claude` with `ANTHROPIC_BASE_URL` set. The proxy lives and dies with the claude process — no daemons, no PID files, no port conflicts.
+**Guard** — Built into the Go binary as a `guard` subcommand. Reads `usage-proxy.json` and/or `usage-statusline.json`, computes burn ratios, and sleeps until both windows are below threshold. Re-reads data every 30s to account for usage changes from other sessions.
+
+**Wrapper** — The `quotamaxxer` script manages the proxy lifecycle: binds to `:0` for an OS-assigned ephemeral port, starts the proxy in the background, reads the assigned port back via a temp file, then `exec`s `claude` with `ANTHROPIC_BASE_URL` set. When `--threshold-*` flags are present, runs the guard before starting the proxy. The proxy lives and dies with the claude process — no daemons, no PID files, no port conflicts.
 
 The proxy is transparent: no body inspection, no header mutation, SSE streaming works natively (Go 1.20+ auto-flushes `text/event-stream`), and upstream errors (including 429s with rate limit headers) are passed through as-is.
 

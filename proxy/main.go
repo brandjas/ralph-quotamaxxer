@@ -25,7 +25,7 @@ const (
 	defaultUpstream = "https://api.anthropic.com"
 )
 
-// ratelimitData is the structured JSON written to ratelimits.json and appended to usage-history.jsonl.
+// ratelimitData is the structured JSON written to usage-proxy.json and appended to usage-history.jsonl.
 type ratelimitData struct {
 	Source              string            `json:"source"`
 	Timestamp           string            `json:"timestamp"`
@@ -51,6 +51,20 @@ type overageData struct {
 var writeCh = make(chan map[string]string, 1)
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "guard":
+			runGuard(os.Args[2:])
+			return
+		case "help", "--help", "-h":
+			runHelp()
+			return
+		}
+	}
+	runProxy()
+}
+
+func runProxy() {
 	port := envOr("QUOTAMAXXER_PORT", defaultPort)
 	dataDir := envOr("QUOTAMAXXER_DATA_DIR", resolveDefaultDataDir())
 	upstream := envOr("QUOTAMAXXER_UPSTREAM", defaultUpstream)
@@ -183,7 +197,7 @@ func parseHeaders(headers map[string]string) ratelimitData {
 }
 
 func asyncWriter(dataDir string) {
-	snapshotPath := filepath.Join(dataDir, "ratelimits.json")
+	snapshotPath := filepath.Join(dataDir, "usage-proxy.json")
 	historyPath := filepath.Join(dataDir, "usage-history.jsonl")
 	lockPath := historyPath + ".lock"
 	maxHistoryBytes := int64(10 * 1024 * 1024) // 10 MB
@@ -197,7 +211,7 @@ func asyncWriter(dataDir string) {
 	for headers := range writeCh {
 		data := parseHeaders(headers)
 
-		// Write ratelimits.json (pretty-printed, atomic).
+		// Write usage-proxy.json (pretty-printed, atomic).
 		pretty, err := json.MarshalIndent(data, "", "  ")
 		if err != nil {
 			log.Printf("json marshal error: %v", err)
