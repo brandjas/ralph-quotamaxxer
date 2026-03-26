@@ -1,0 +1,33 @@
+{
+    "name": "ralph-quotamaxxer",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.go"
+            ]
+        }
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:1": {
+            "installZsh": true,
+            "installOhMyZsh": true,
+            "configureZshAsDefaultShell": true,
+            "upgradePackages": false
+        }
+    },
+    "containerEnv": {
+        "LANG": "en_US.UTF-8",
+        "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "65536"
+    },
+    "remoteUser": "dev",
+    "mounts": [
+        "source=${localEnv:HOME}/.claude,target=/home/dev/.claude,type=bind",
+        "source=${localEnv:HOME}/.claude.json,target=/home/dev/.claude.json,type=bind",
+        "source=quotamaxxer-zshhistory,target=/commandhistory,type=volume"
+    ],
+    "postCreateCommand": "echo 'export HISTFILE=/commandhistory/.zsh_history' >> ~/.zshrc && (curl -fsSL https://claude.ai/install.sh | bash)"
+}
