@@ -127,7 +127,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-QUOTAMAXXER_DATA_DIR="$DATA_DIR" QUOTAMAXXER_PORT_FILE="$PORT_FILE" "$PROXY_BIN" 2>/dev/null &
+QUOTAMAXXER_DATA_DIR="$DATA_DIR" QUOTAMAXXER_PORT_FILE="$PORT_FILE" "$PROXY_BIN" >/dev/null 2>&1 &
 PROXY_PID=$!
 
 # Wait for the port file to be written (up to 3s).
