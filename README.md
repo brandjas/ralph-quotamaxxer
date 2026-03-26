@@ -19,7 +19,9 @@ to your quota ceiling and coast until it resets.
 
 ## What it is
 
-A drop-in replacement for `claude` that tracks your rate limits. If your burn rate is too high, it waits for it to come back down. If you start using Claude yourself, ralph loops using `quotamaxxer` automatically back off to make room, then ramp back up when you stop. A ralph loop looks like this:
+A drop-in replacement for `claude` that tracks your rate limits. If your burn rate is too high, it waits for it to come back down. If you start using Claude yourself, ralph loops using `quotamaxxer` automatically back off to make room, then ramp back up when you stop.
+
+A ralph loop looks like this:
 
 ```bash
 while true; do
@@ -64,6 +66,9 @@ alias claude='~/.claude/ralph-quotamaxxer/bin/quotamaxxer --'
 
 ## Usage
 
+> [!IMPORTANT]
+> Usage data is only collected when Claude runs through `quotamaxxer`. If you run `claude` directly, those API calls won't be tracked and the guard will underestimate your actual usage. For accurate pacing, run **all** sessions through `quotamaxxer` — the simplest way is to [alias `claude`](#install).
+
 Without threshold flags, it just proxies and records rate limits:
 
 ```bash
@@ -84,7 +89,6 @@ quotamaxxer guard --threshold-5h 0.8 --threshold-7d 0.9 && \
 echo "🚀 quota headroom available, let's go"
 ```
 
-But note that usage information is only updated when actual API calls are performed through `quotamaxxer`.
 
 <details>
 <summary><b>Flags</b> (before <code>--</code>, or after <code>guard</code>)</summary>
@@ -133,8 +137,6 @@ All via environment variables, no config files:
 ## How it works
 
 The `quotamaxxer` wrapper starts a local Go reverse proxy, points Claude Code at it via `ANTHROPIC_BASE_URL`, then `exec`s `claude`. The proxy sits between Claude Code and `api.anthropic.com`, extracting `anthropic-ratelimit-unified-*` headers from every response and writing them to disk. No body inspection, no header mutation, SSE streaming passes through, and upstream errors (including 429s) are forwarded as-is. Go standard library only.
-
-The guard reads those usage files before each loop iteration, computes burn ratios for both the 5-hour and 7-day windows, and sleeps until both are below threshold. It re-reads every 30s to pick up changes from other sessions.
 
 The proxy lives and dies with the `claude` process. No daemons, no PID files, no port conflicts.
 

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -199,6 +198,7 @@ func runGuard(args []string) {
 			return
 		}
 
+		now := time.Now().Unix()
 		var maxSleep float64
 		var worstWindow string
 		var worstBurn, worstThreshold float64
@@ -208,6 +208,10 @@ func runGuard(args []string) {
 			if burn > *threshold5h {
 				ep := elapsedPct(snap.FiveHourReset, window5hSeconds)
 				s := computeSleepSeconds(snap.FiveHourUtil, *threshold5h, ep, window5hSeconds)
+				// Never sleep past reset — utilization resets then.
+				if untilReset := float64(snap.FiveHourReset - now); untilReset > 0 && s > untilReset {
+					s = untilReset
+				}
 				if s > maxSleep {
 					maxSleep = s
 					worstWindow = "5h"
@@ -222,6 +226,10 @@ func runGuard(args []string) {
 			if burn > *threshold7d {
 				ep := elapsedPct(snap.SevenDayReset, window7dSeconds)
 				s := computeSleepSeconds(snap.SevenDayUtil, *threshold7d, ep, window7dSeconds)
+				// Never sleep past reset — utilization resets then.
+				if untilReset := float64(snap.SevenDayReset - now); untilReset > 0 && s > untilReset {
+					s = untilReset
+				}
 				if s > maxSleep {
 					maxSleep = s
 					worstWindow = "7d"
@@ -245,8 +253,7 @@ func runGuard(args []string) {
 			os.Exit(1)
 		}
 
-		// Cap poll interval at 30s so we re-read fresh data.
-		sleepDur := math.Min(maxSleep, 30)
+		sleepDur := maxSleep
 
 		// Don't sleep past deadline.
 		if !deadline.IsZero() {
@@ -256,9 +263,14 @@ func runGuard(args []string) {
 			}
 		}
 
+		// Floor at 1s to avoid busy-looping on rounding.
+		if sleepDur < 1 {
+			sleepDur = 1
+		}
+
 		if !*quiet {
 			fmt.Fprintf(os.Stderr, "quotamaxxer: waiting %s — %s burn %.2f > %.2f\n",
-				formatDuration(maxSleep), worstWindow, worstBurn, worstThreshold)
+				formatDuration(sleepDur), worstWindow, worstBurn, worstThreshold)
 		}
 
 		time.Sleep(time.Duration(sleepDur * float64(time.Second)))
