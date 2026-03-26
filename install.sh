@@ -5,7 +5,7 @@ set -euo pipefail
 REPO_DIR="$(dirname "$(readlink -f "$0")")"
 DEST_DIR="$HOME/.claude/ralph-quotamaxxer"
 SETTINGS="$HOME/.claude/settings.json"
-STATUSLINE_CMD="$HOME/.claude/ralph-quotamaxxer/scripts/statusline.sh"
+STATUSLINE_CMD="~/.claude/ralph-quotamaxxer/scripts/statusline.sh"
 
 # Copy scripts
 mkdir -p "$DEST_DIR/scripts" "$DEST_DIR/data"
@@ -24,4 +24,4 @@ jq --arg cmd "$STATUSLINE_CMD" \
    "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
 
 echo "settings.json patched: statusLine → $STATUSLINE_CMD"
-echo "Done. Restart Claude Code to activate the statusline."
+echo "Done."
