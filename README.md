@@ -1,19 +1,41 @@
+<div align="center">
+
 # Ralph Quotamaxxer
 
-Rate limit visibility for Claude Code Pro/Max subscribers.
+**You paid for the tokens. Use all of them.**
 
-Claude Code doesn't expose rate limit data in headless (`claude -p`) sessions or to external tooling. Ralph Quotamaxxer fills that gap with a transparent proxy that extracts rate limit headers from every API response, and a statusline that displays them in interactive sessions.
+Rate limit-aware pacing for Claude Code. Lets autonomous loops burn right up
+to your quota ceiling and coast until it resets.
 
-## Quick start
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS-lightgrey)]()
+
+[Install](#install) | [Usage](#usage) | [How it works](#how-it-works)
+
+</div>
+
+---
+
+## What it is
+
+A drop-in replacement for `claude` that tracks your rate limits. If your burn rate is too high, it waits for it to come back down. If you start using Claude yourself, ralph loops using `quotamaxxer` automatically back off to make room, then ramp back up when you stop. A ralph loop looks like this:
+
+```bash
+while true; do
+  # waits if you're burning quota too fast, runs immediately if there's headroom
+  quotamaxxer --threshold-5h 0.8 --threshold-7d 0.9 -- -p "do work"
+done
+```
+
+## Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/brandjas/ralph-quotamaxxer/main/install-remote.sh | bash
 ```
 
-No Go required — downloads a pre-built binary for your platform. Pin a version with `QUOTAMAXXER_VERSION=v0.1.0`.
-
 <details>
-<summary>Install from source (requires Go 1.22+)</summary>
+<summary><b>Install from source</b> (requires Go 1.22+)</summary>
 
 ```bash
 git clone https://github.com/brandjas/ralph-quotamaxxer.git
@@ -22,41 +44,50 @@ cd ralph-quotamaxxer
 ```
 </details>
 
-Then use `quotamaxxer` instead of `claude`:
+<details>
+<summary><b>Supported platforms</b></summary>
+
+| OS | Arch |
+|---|---|
+| Linux | amd64, arm64 |
+| macOS | amd64 (Intel), arm64 (Apple Silicon) |
+
+</details>
+
+Everything installs into `~/.claude/ralph-quotamaxxer/`, so it works inside devcontainers that bind-mount `~/.claude`. Multiple sessions (interactive, headless, across containers) can run concurrently and share the same usage data.
 
 ```bash
-~/.claude/ralph-quotamaxxer/bin/quotamaxxer          # interactive
-~/.claude/ralph-quotamaxxer/bin/quotamaxxer -p "..."  # headless
+alias claude='~/.claude/ralph-quotamaxxer/bin/quotamaxxer --'
 ```
 
-Or alias it:
+`quotamaxxer` uses `exec` to hand off to `claude`, so exit codes propagate correctly.
+
+## Usage
+
+Without threshold flags, it just proxies and records rate limits:
 
 ```bash
-alias claude=~/.claude/ralph-quotamaxxer/bin/quotamaxxer
+quotamaxxer              # interactive
+quotamaxxer -p "..."     # headless
 ```
 
-`quotamaxxer` is a drop-in replacement for `claude` — all arguments are forwarded as-is.
-
-## Rate limit guard
-
-The guard pauses execution until your burn rate drops below a threshold. Burn ratio = usage / elapsed fraction of the window. A ratio of 1.0 means on pace to exhaust quota at reset; >1.0 means burning too fast.
-
-**Integrated** — guard before each run:
+With threshold flags, it waits until your burn rate dips below the threshold before running:
 
 ```bash
 quotamaxxer --threshold-5h 0.8 --threshold-7d 0.9 -- -p "..."
 ```
 
-**Standalone** — useful in loops:
+The guard is also available as a standalone command. It blocks until there's headroom, then exits:
 
 ```bash
-while true; do
-  quotamaxxer guard --threshold-5h 0.8 --threshold-7d 0.9
-  claude -p "..."
-done
+quotamaxxer guard --threshold-5h 0.8 --threshold-7d 0.9 && \
+echo "🚀 quota headroom available, let's go"
 ```
 
-**Flags** (before `--`, or after `guard`):
+But note that usage information is only updated when actual API calls are performed through `quotamaxxer`.
+
+<details>
+<summary><b>Flags</b> (before <code>--</code>, or after <code>guard</code>)</summary>
 
 | Flag | Description |
 |---|---|
@@ -67,50 +98,50 @@ done
 | `--quiet` | Suppress waiting output |
 | `--help` | Show help |
 
-Without `--`, all arguments go directly to `claude` (no guard runs). The `--` separator splits quotamaxxer flags from claude arguments.
+The `guard` subcommand requires at least one `--threshold-*` flag. All arguments after `--` go directly to `claude`.
+
+</details>
 
 ## What you get
 
 After each API call, rate limit data is written to `~/.claude/ralph-quotamaxxer/data/`:
 
-| File | Purpose |
+| File | Contents |
 |---|---|
-| `usage-proxy.json` | Latest rate limit snapshot from the proxy (pretty-printed, atomic write) |
-| `usage-statusline.json` | Latest session state from the statusline |
-| `usage-history.jsonl` | Append-only history from both sources (auto-rotating at 10 MB) |
+| `usage-proxy.json` | Latest rate limit snapshot from the proxy |
+| `usage-history.jsonl` | Append-only history (auto-rotates at 10 MB) |
 
-In interactive sessions, the statusline also displays model, context usage, cost, and color-coded rate limit percentages with burn rate indicators.
+The install also includes a statusline script that collects usage data from interactive sessions and displays quota percentages, model, context usage, and cost. To enable it, add this to `~/.claude/settings.json` (requires `jq`):
 
-All of `~/.claude/` is bind-mounted into devcontainers, so every container shares the same data.
+```json
+{
+  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/statusline/statusline.sh" }
+}
+```
 
 ## Configuration
 
-All via environment variables — no config files:
+All via environment variables, no config files:
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `QUOTAMAXXER_DATA_DIR` | `~/.claude/ralph-quotamaxxer/data` | Data directory |
-| `QUOTAMAXXER_UPSTREAM` | `https://api.anthropic.com` | Upstream URL (useful for testing) |
+| `QUOTAMAXXER_UPSTREAM` | `https://api.anthropic.com` | Upstream URL |
 | `QUOTAMAXXER_PORT` | `0` (OS-assigned) | Proxy listen port |
 | `QUOTAMAXXER_MAX_HISTORY_BYTES` | `10485760` (10 MB) | History rotation threshold |
 
-## Testing
+## How it works
 
-```bash
-./test/test-proxy.sh
-```
+The `quotamaxxer` wrapper starts a local Go reverse proxy, points Claude Code at it via `ANTHROPIC_BASE_URL`, then `exec`s `claude`. The proxy sits between Claude Code and `api.anthropic.com`, extracting `anthropic-ratelimit-unified-*` headers from every response and writing them to disk. No body inspection, no header mutation, SSE streaming passes through, and upstream errors (including 429s) are forwarded as-is. Go standard library only.
 
-Builds the proxy, fires a real Haiku call through it, and validates that `usage-proxy.json` and `usage-history.jsonl` were written correctly.
+The guard reads those usage files before each loop iteration, computes burn ratios for both the 5-hour and 7-day windows, and sleeps until both are below threshold. It re-reads every 30s to pick up changes from other sessions.
 
-```bash
-./test/test-guard.sh
-```
+The proxy lives and dies with the `claude` process. No daemons, no PID files, no port conflicts.
 
-Tests the guard subcommand with synthetic data: low/high utilization, timeout behavior, both file formats, `--source` filtering.
+<details>
+<summary><b>History schema</b></summary>
 
-## History schema
-
-Both the proxy and statusline append to `usage-history.jsonl`. Every record shares a common core:
+Both sources append to `usage-history.jsonl` with a common core:
 
 ```json
 {
@@ -123,34 +154,40 @@ Both the proxy and statusline append to `usage-history.jsonl`. Every record shar
 }
 ```
 
-The `source` field distinguishes record origin. Each source adds fields the other can't provide:
+Source-specific fields:
 
-- **Proxy-only:** `representative_claim`, `overage`, `raw_headers` — from HTTP response headers.
-- **Statusline-only:** `hostname`, `session_id`, `model`, `context_pct`, `cost`, `burn_ratio` — from Claude Code's stdin JSON.
+- **Proxy:** `representative_claim`, `overage`, `raw_headers`
+- **Statusline:** `hostname`, `session_id`, `model`, `context_pct`, `cost`, `burn_ratio`
 
-Consumers can filter on `source` for source-specific fields, or ignore it to process rate limit data uniformly.
+</details>
 
-## How it works
+## Testing
 
-**Proxy** — A Go reverse proxy (`net/http/httputil.ReverseProxy`) that sits between Claude Code and `api.anthropic.com`. Extracts `anthropic-ratelimit-unified-*` response headers on every response. Writes the latest snapshot to `usage-proxy.json` and appends to the shared history. Go standard library only, zero external dependencies.
+```bash
+./test/test-proxy.sh    # real Haiku call through the proxy
+./test/test-guard.sh    # synthetic guard scenarios
+```
 
-**Statusline** — Bash scripts invoked by Claude Code's statusline mechanism after each assistant message. Reads rate limit data from Claude Code's stdin JSON in interactive sessions, falling back to `usage-proxy.json` for headless sessions.
+<details>
+<summary><b>References</b></summary>
 
-**Guard** — Built into the Go binary as a `guard` subcommand. Reads `usage-proxy.json` and/or `usage-statusline.json`, computes burn ratios, and sleeps until both windows are below threshold. Re-reads data every 30s to account for usage changes from other sessions.
+1. [Claude Code - Statusline docs](https://code.claude.com/docs/en/statusline)
+2. [Claude Code - Environment variables](https://code.claude.com/docs/en/env-vars): `ANTHROPIC_BASE_URL` sets the SDK's `baseURL`
+3. [Go `httputil.ReverseProxy`](https://pkg.go.dev/net/http/httputil#ReverseProxy)
+4. Claude Code source (v2.1.84): `OX8` reads `anthropic-ratelimit-unified-*` headers; `EN$` parses them on 429s. Window durations hardcoded: `five_hour` = 18,000s, `seven_day` = 604,800s
+5. [Anthropic - Rate limits](https://docs.anthropic.com/en/api/rate-limits): `unified-*` headers are undocumented, specific to Pro/Max
+6. [claude-code#33820](https://github.com/anthropics/claude-code/issues/33820): feature request motivating this project
 
-**Wrapper** — The `quotamaxxer` script manages the proxy lifecycle: binds to `:0` for an OS-assigned ephemeral port, starts the proxy in the background, reads the assigned port back via a temp file, then `exec`s `claude` with `ANTHROPIC_BASE_URL` set. When `--threshold-*` flags are present, runs the guard before starting the proxy. The proxy lives and dies with the claude process — no daemons, no PID files, no port conflicts.
+</details>
 
-The proxy is transparent: no body inspection, no header mutation, SSE streaming works natively (Go 1.20+ auto-flushes `text/event-stream`), and upstream errors (including 429s with rate limit headers) are passed through as-is.
+<details>
+<summary><b>Uninstall</b></summary>
 
-## References
+```bash
+rm -rf ~/.claude/ralph-quotamaxxer
+```
 
-1. [Claude Code — Statusline docs](https://code.claude.com/docs/en/statusline) — "Your script runs after each new assistant message" (interactive TUI only).
-2. [Claude Code — Environment variables](https://code.claude.com/docs/en/env-vars) — `ANTHROPIC_BASE_URL` sets the SDK's `baseURL`; Claude Code appends API paths to it.
-3. [Go `httputil.ReverseProxy`](https://pkg.go.dev/net/http/httputil#ReverseProxy) — `Director` rewrites requests, `ModifyResponse` intercepts responses before streaming.
-4. [Go #47359 — ReverseProxy SSE auto-flush](https://github.com/golang/go/issues/47359) — Since Go 1.20, `ReverseProxy` detects `text/event-stream` and flushes immediately. This is why Go 1.20+ is required.
-5. Claude Code source (v2.1.84) — The `OX8` function reads `anthropic-ratelimit-unified-*` headers on every streaming response. On 429 errors, `EN$` parses the same headers to identify the exhausted window. Window durations are hardcoded: `five_hour` = 18,000s, `seven_day` = 604,800s.
-6. [Anthropic — Rate limits](https://docs.anthropic.com/en/api/rate-limits) — Documents standard API rate limit headers. The `unified-*` headers are undocumented and specific to consumer-tier (Pro/Max) subscriptions.
-7. [claude-code#33820](https://github.com/anthropics/claude-code/issues/33820) — Feature request to expose rate limit headers to hooks (motivation for this project).
+</details>
 
 ## License
 

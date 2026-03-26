@@ -5,9 +5,6 @@ set -euo pipefail
 
 REPO="brandjas/ralph-quotamaxxer"
 DEST_DIR="$HOME/.claude/ralph-quotamaxxer"
-SETTINGS="$HOME/.claude/settings.json"
-# shellcheck disable=SC2088  # tilde stored literally; Claude Code expands it
-STATUSLINE_CMD="~/.claude/ralph-quotamaxxer/statusline/statusline.sh"
 RAW_BASE="https://raw.githubusercontent.com/$REPO/main"
 
 # --- Detect platform ---
@@ -70,7 +67,7 @@ fi
 echo "Version: $VERSION"
 
 # Create directories.
-mkdir -p "$DEST_DIR/bin" "$DEST_DIR/statusline" "$DEST_DIR/data"
+mkdir -p "$DEST_DIR/bin" "$DEST_DIR/data"
 
 # Download binary.
 BINARY_URL="https://github.com/$REPO/releases/download/$VERSION/quotamaxxer-proxy-$PLATFORM"
@@ -78,26 +75,16 @@ echo "Downloading binary..."
 download "$BINARY_URL" "$DEST_DIR/bin/quotamaxxer-proxy"
 chmod +x "$DEST_DIR/bin/quotamaxxer-proxy"
 
-# Download shell scripts.
+# Download wrapper + statusline scripts.
 echo "Downloading scripts..."
-download "$RAW_BASE/proxy/wrapper.sh"           "$DEST_DIR/bin/quotamaxxer"
+download "$RAW_BASE/proxy/wrapper.sh" "$DEST_DIR/bin/quotamaxxer"
+chmod +x "$DEST_DIR/bin/quotamaxxer"
+
+mkdir -p "$DEST_DIR/statusline"
 download "$RAW_BASE/statusline/statusline.sh"   "$DEST_DIR/statusline/statusline.sh"
 download "$RAW_BASE/statusline/parse.sh"        "$DEST_DIR/statusline/parse.sh"
 download "$RAW_BASE/statusline/persist.sh"      "$DEST_DIR/statusline/persist.sh"
-chmod +x "$DEST_DIR/bin/quotamaxxer" "$DEST_DIR/statusline/statusline.sh"
-
-# Patch settings.json.
-if command -v jq &>/dev/null; then
-    [[ -f "$SETTINGS" ]] || echo '{}' > "$SETTINGS"
-    jq --arg cmd "$STATUSLINE_CMD" \
-       '.statusLine = { type: "command", command: $cmd }' \
-       "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
-    echo "Patched settings.json"
-else
-    echo "jq not found — skipping settings.json patch."
-    echo "Add this manually to ~/.claude/settings.json:"
-    echo "  \"statusLine\": { \"type\": \"command\", \"command\": \"$STATUSLINE_CMD\" }"
-fi
+chmod +x "$DEST_DIR/statusline/statusline.sh"
 
 echo ""
 echo "Installed to $DEST_DIR"
@@ -108,3 +95,6 @@ echo "  $DEST_DIR/bin/quotamaxxer -p '...' # headless"
 echo ""
 echo "Or alias it:"
 echo "  alias claude=$DEST_DIR/bin/quotamaxxer"
+echo ""
+echo "To enable the statusline, add this to ~/.claude/settings.json:"
+echo '  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/statusline/statusline.sh" }'
