@@ -97,7 +97,8 @@ echo "🚀 quota headroom available, let's go"
 |---|---|
 | `--threshold-5h <ratio>` | Wait until 5h burn ratio drops below this |
 | `--threshold-7d <ratio>` | Wait until 7d burn ratio drops below this |
-| `--timeout <duration>` | Max wait time (e.g. `30m`, `1h`). Exit 1 if exceeded. Default: forever |
+| `--wait-timeout <dur>` | Max guard wait time (e.g. `30m`, `1h`). Exit 1 if exceeded. Default: forever |
+| `--run-timeout <dur>` | Max claude run time (e.g. `2h`). Exit 124 if exceeded. Headless only. Default: forever |
 | `--source <src>` | Data source: `both` (default), `proxy`, `statusline` |
 | `--quiet` | Suppress waiting output |
 | `--help` | Show help |

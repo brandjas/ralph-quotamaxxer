@@ -8,7 +8,8 @@
 # Flags (before --):
 #   --threshold-5h <ratio>   Wait until 5h burn ratio drops below this
 #   --threshold-7d <ratio>   Wait until 7d burn ratio drops below this
-#   --timeout <duration>     Max guard wait time (e.g. 30m, 1h)
+#   --wait-timeout <dur>     Max guard wait time (e.g. 30m, 1h)
+#   --run-timeout <dur>      Max claude run time (e.g. 2h)
 #   --source <src>           Data source: both (default), proxy, statusline
 #   --quiet                  Suppress guard output
 #   --help                   Show help
@@ -54,7 +55,8 @@ fi
 # --- Parse quotamaxxer args ---
 THRESHOLD_5H=""
 THRESHOLD_7D=""
-TIMEOUT=""
+WAIT_TIMEOUT=""
+RUN_TIMEOUT=""
 SOURCE=""
 QUIET=""
 STANDALONE_GUARD=false
@@ -76,9 +78,13 @@ while (( i < ${#QUOTAMAXXER_ARGS[@]} )); do
             (( i++ )) || true
             THRESHOLD_7D="${QUOTAMAXXER_ARGS[$i]}"
             ;;
-        --timeout)
+        --wait-timeout)
             (( i++ )) || true
-            TIMEOUT="${QUOTAMAXXER_ARGS[$i]}"
+            WAIT_TIMEOUT="${QUOTAMAXXER_ARGS[$i]}"
+            ;;
+        --run-timeout)
+            (( i++ )) || true
+            RUN_TIMEOUT="${QUOTAMAXXER_ARGS[$i]}"
             ;;
         --source)
             (( i++ )) || true
@@ -111,7 +117,7 @@ if [[ -n "$THRESHOLD_5H" || -n "$THRESHOLD_7D" ]]; then
     GUARD_CMD=("$PROXY_BIN" guard --data-dir "$DATA_DIR")
     [[ -n "$THRESHOLD_5H" ]] && GUARD_CMD+=(--threshold-5h "$THRESHOLD_5H")
     [[ -n "$THRESHOLD_7D" ]] && GUARD_CMD+=(--threshold-7d "$THRESHOLD_7D")
-    [[ -n "$TIMEOUT" ]] && GUARD_CMD+=(--timeout "$TIMEOUT")
+    [[ -n "$WAIT_TIMEOUT" ]] && GUARD_CMD+=(--wait-timeout "$WAIT_TIMEOUT")
     [[ -n "$SOURCE" ]] && GUARD_CMD+=(--source "$SOURCE")
     [[ -n "$QUIET" ]] && GUARD_CMD+=(--quiet)
     "${GUARD_CMD[@]}" || exit $?
@@ -151,4 +157,9 @@ if [[ -z "$PORT" ]]; then
 fi
 
 export ANTHROPIC_BASE_URL="http://127.0.0.1:$PORT"
-exec claude "${CLAUDE_ARGS[@]}"
+
+if [[ -n "$RUN_TIMEOUT" ]]; then
+    exec timeout "$RUN_TIMEOUT" claude "${CLAUDE_ARGS[@]}"
+else
+    exec claude "${CLAUDE_ARGS[@]}"
+fi

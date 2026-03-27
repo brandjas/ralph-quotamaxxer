@@ -68,7 +68,7 @@ cat > "$DATA_DIR/usage-proxy.json" <<EOF
 }
 EOF
 
-if "$PROXY_BIN" guard --threshold-5h 0.5 --data-dir "$DATA_DIR" --timeout 1s --quiet; then
+if "$PROXY_BIN" guard --threshold-5h 0.5 --data-dir "$DATA_DIR" --wait-timeout 1s --quiet; then
     echo "FAIL: guard should exit 1 on timeout"
     exit 1
 else
@@ -124,7 +124,7 @@ cat > "$DATA_DIR/usage-proxy.json" <<EOF
 EOF
 # Statusline file already has low utilization with epoch $NOW (newer).
 
-if "$PROXY_BIN" guard --threshold-5h 0.5 --threshold-7d 0.5 --data-dir "$DATA_DIR" --timeout 1s --quiet; then
+if "$PROXY_BIN" guard --threshold-5h 0.5 --threshold-7d 0.5 --data-dir "$DATA_DIR" --wait-timeout 1s --quiet; then
     echo "PASS: newer statusline data wins over older proxy data"
 else
     echo "FAIL: should use newer statusline data (low util) over older proxy data (high util)"
