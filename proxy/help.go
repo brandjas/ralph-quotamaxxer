@@ -8,7 +8,7 @@ Usage:
   quotamaxxer [flags] [-- claude-args...]    Start proxy, optionally guard, then run claude
   quotamaxxer guard [flags]                  Wait for rate limits, then exit
   quotamaxxer proxy                          Run standalone proxy server
-  quotamaxxer statusline-persist             Read JSON from stdin, write usage files
+  quotamaxxer statusline                     Claude Code statusline (reads JSON from stdin)
 
 Flags (before --):
   --threshold-5h <ratio>   Wait until 5h burn ratio drops below this (e.g. 0.8)

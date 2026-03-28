@@ -75,12 +75,6 @@ echo "Downloading binary..."
 download "$BINARY_URL" "$DEST_DIR/bin/quotamaxxer"
 chmod +x "$DEST_DIR/bin/quotamaxxer"
 
-# Download statusline scripts.
-echo "Downloading scripts..."
-mkdir -p "$DEST_DIR/statusline"
-download "$RAW_BASE/statusline/statusline.sh"   "$DEST_DIR/statusline/statusline.sh"
-download "$RAW_BASE/statusline/parse.sh"        "$DEST_DIR/statusline/parse.sh"
-chmod +x "$DEST_DIR/statusline/statusline.sh"
 
 echo ""
 echo "Installed to $DEST_DIR"
@@ -93,4 +87,4 @@ echo "Or alias it:"
 echo "  alias claude=$DEST_DIR/bin/quotamaxxer"
 echo ""
 echo "To enable the statusline, add this to ~/.claude/settings.json:"
-echo '  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/statusline/statusline.sh" }'
+echo '  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline" }'

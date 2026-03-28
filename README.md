@@ -116,11 +116,11 @@ After each API call, rate limit data is written to `~/.claude/ralph-quotamaxxer/
 | `usage-proxy.json` | Latest rate limit snapshot from the proxy |
 | `usage-history.jsonl` | Append-only history (auto-rotates at 10 MB) |
 
-The install also includes a statusline script that collects usage data from interactive sessions and displays quota percentages, model, context usage, and cost. To enable it, add this to `~/.claude/settings.json` (requires `jq`):
+The binary also includes a statusline subcommand that collects usage data from interactive sessions and displays quota percentages, model, context usage, and cost. To enable it, add this to `~/.claude/settings.json`:
 
 ```json
 {
-  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/statusline/statusline.sh" }
+  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline" }
 }
 ```
 

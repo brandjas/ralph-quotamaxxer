@@ -60,8 +60,8 @@ func main() {
 		case "proxy":
 			runStandaloneProxy()
 			return
-		case "statusline-persist":
-			runStatuslinePersist()
+		case "statusline":
+			runStatusline()
 			return
 		case "help", "--help", "-h":
 			runHelp()
