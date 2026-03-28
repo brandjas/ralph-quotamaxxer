@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -56,35 +57,26 @@ func main() {
 		case "guard":
 			runGuard(os.Args[2:])
 			return
+		case "proxy":
+			runStandaloneProxy()
+			return
+		case "statusline-persist":
+			runStatuslinePersist()
+			return
 		case "help", "--help", "-h":
 			runHelp()
 			return
 		}
 	}
-	runProxy()
+	os.Exit(runOrchestrator(os.Args[1:]))
 }
 
-func runProxy() {
-	port := envOr("QUOTAMAXXER_PORT", defaultPort)
-	dataDir := envOr("QUOTAMAXXER_DATA_DIR", resolveDefaultDataDir())
-	upstream := envOr("QUOTAMAXXER_UPSTREAM", defaultUpstream)
-
-	upstreamURL, err := url.Parse(upstream)
-	if err != nil {
-		log.Fatalf("invalid upstream URL %q: %v", upstream, err)
-	}
-
-	// Ensure data directory exists.
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		log.Fatalf("cannot create data dir %q: %v", dataDir, err)
-	}
-
-	// Start async writer.
+// newProxyHandler creates the reverse proxy HTTP handler and starts the async writer.
+func newProxyHandler(dataDir string, upstreamURL *url.URL) http.Handler {
 	go asyncWriter(dataDir)
 
 	proxy := httputil.NewSingleHostReverseProxy(upstreamURL)
 
-	// Director: rewrite scheme + host, preserve everything else.
 	origDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		origDirector(req)
@@ -93,7 +85,6 @@ func runProxy() {
 		req.Host = upstreamURL.Host
 	}
 
-	// ModifyResponse: extract rate limit headers, non-blocking.
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		headers := make(map[string]string)
 		for key, vals := range resp.Header {
@@ -104,11 +95,9 @@ func runProxy() {
 			}
 		}
 		if len(headers) > 0 {
-			// Non-blocking send — drop if writer is busy (last-writer-wins).
 			select {
 			case writeCh <- headers:
 			default:
-				// Drain and replace.
 				select {
 				case <-writeCh:
 				default:
@@ -119,21 +108,63 @@ func runProxy() {
 		return nil
 	}
 
-	// ErrorHandler: log transport errors.
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		log.Printf("proxy error: %s %s: %v", r.Method, r.URL.Path, err)
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, proxyErr error) {
+		log.Printf("proxy error: %s %s: %v", r.Method, r.URL.Path, proxyErr)
 		w.WriteHeader(http.StatusBadGateway)
 	}
 
-	// Bind to the requested port (default :0 = OS-assigned ephemeral).
+	return proxy
+}
+
+// startProxyServer starts the reverse proxy in-process on the given port
+// ("0" for OS-assigned ephemeral) and returns the bound address and a shutdown
+// function. The caller is responsible for signal handling.
+func startProxyServer(dataDir, upstream, port string) (addr string, shutdown func(), err error) {
+	upstreamURL, err := url.Parse(upstream)
+	if err != nil {
+		return "", nil, fmt.Errorf("invalid upstream URL %q: %v", upstream, err)
+	}
+
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return "", nil, fmt.Errorf("cannot create data dir %q: %v", dataDir, err)
+	}
+
+	handler := newProxyHandler(dataDir, upstreamURL)
+
 	ln, err := net.Listen("tcp", "127.0.0.1:"+port)
 	if err != nil {
-		log.Fatalf("listen: %v", err)
+		return "", nil, fmt.Errorf("listen: %v", err)
 	}
-	actualAddr := ln.Addr().String()
-	_, actualPort, _ := net.SplitHostPort(actualAddr)
 
-	// Write the port to a file so the wrapper can discover it.
+	srv := &http.Server{Handler: handler}
+	go func() {
+		if serveErr := srv.Serve(ln); serveErr != http.ErrServerClosed {
+			log.Printf("proxy serve error: %v", serveErr)
+		}
+	}()
+
+	shutdownFn := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		srv.Shutdown(ctx)
+		close(writeCh)
+	}
+
+	return ln.Addr().String(), shutdownFn, nil
+}
+
+// runStandaloneProxy runs the proxy as a standalone server (quotamaxxer proxy).
+func runStandaloneProxy() {
+	port := envOr("QUOTAMAXXER_PORT", defaultPort)
+	dataDir := envOr("QUOTAMAXXER_DATA_DIR", resolveDefaultDataDir())
+	upstream := envOr("QUOTAMAXXER_UPSTREAM", defaultUpstream)
+
+	addr, shutdown, err := startProxyServer(dataDir, upstream, port)
+	if err != nil {
+		log.Fatalf("quotamaxxer proxy: %v", err)
+	}
+
+	_, actualPort, _ := net.SplitHostPort(addr)
 	portFile := envOr("QUOTAMAXXER_PORT_FILE", "")
 	if portFile != "" {
 		if err := os.WriteFile(portFile, []byte(actualPort+"\n"), 0644); err != nil {
@@ -141,23 +172,11 @@ func runProxy() {
 		}
 	}
 
-	srv := &http.Server{Handler: proxy}
-
-	// Graceful shutdown on SIGTERM/SIGINT.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
-	go func() {
-		sig := <-sigCh
-		log.Printf("received %v, shutting down...", sig)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		srv.Shutdown(ctx)
-	}()
-
-	log.Printf("quotamaxxer-proxy listening on %s → %s (data: %s)", actualAddr, upstream, dataDir)
-	if err := srv.Serve(ln); err != http.ErrServerClosed {
-		log.Fatalf("serve: %v", err)
-	}
+	sig := <-sigCh
+	log.Printf("received %v, shutting down...", sig)
+	shutdown()
 }
 
 func parseHeaders(headers map[string]string) ratelimitData {

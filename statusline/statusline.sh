@@ -1,31 +1,19 @@
 #!/usr/bin/env bash
 # statusline.sh — Entry point invoked by Claude Code's statusLine mechanism.
-# Sources parse.sh and persist.sh, then echoes a colored single-line statusline.
+# Sources parse.sh for display variables, pipes raw stdin to Go binary for persistence.
 #
 # Claude Code pipes a JSON object to stdin after each assistant message (debounced 300ms).
-# Relevant fields:
-#   model.display_name, model.id
-#   session_id
-#   context_window.used_percentage
-#   cost.total_cost_usd
-#   rate_limits.five_hour.used_percentage   (0–100, Pro/Max only, absent until first API response)
-#   rate_limits.five_hour.resets_at         (unix epoch seconds)
-#   rate_limits.seven_day.used_percentage   (0–100)
-#   rate_limits.seven_day.resets_at         (unix epoch seconds)
-#
-# Burn ratio = used_pct / elapsed_pct, where elapsed_pct is the fraction of the
-# window's total duration already passed (derivable from resets_at and known
-# window durations: 5h = 18000s, 7d = 604800s). A ratio of 1.0 means exactly
-# on pace to exhaust quota at reset; >1.0 means burning too fast.
+# The Go binary (quotamaxxer statusline-persist) handles parsing and persistence.
+# This script only handles display formatting.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-DATA_DIR="$SCRIPT_DIR/../data"
-mkdir -p "$DATA_DIR"
+QUOTAMAXXER_BIN="${QUOTAMAXXER_BIN:-$SCRIPT_DIR/../bin/quotamaxxer}"
+export QUOTAMAXXER_DATA_DIR="${QUOTAMAXXER_DATA_DIR:-$SCRIPT_DIR/../data}"
+mkdir -p "$QUOTAMAXXER_DATA_DIR"
 
 source "$SCRIPT_DIR/parse.sh"
-source "$SCRIPT_DIR/persist.sh"
 
 # --- ANSI colors ---
 RED=$'\033[0;31m'
@@ -54,13 +42,15 @@ burn_indicators() {
 }
 
 # --- Main ---
-parse_stdin
+# Save raw stdin so both parse and persist can use it.
+RAW_STDIN=$(cat)
+parse_stdin <<< "$RAW_STDIN"
 
 cost=$(printf '%.2f' "$COST_USD")
 line="${DIM}${MODEL_NAME}${RESET} | Ctx ${CONTEXT_PCT}% | \$${cost}"
 
 if [[ "$HAS_RATE_LIMITS" == "true" ]]; then
-    persist_usage
+    "$QUOTAMAXXER_BIN" statusline-persist <<< "$RAW_STDIN"
 
     c5h=$(color_for_pct "${LIMIT_5H_USED_PCT%.*}")
     c7d=$(color_for_pct "${LIMIT_7D_USED_PCT%.*}")

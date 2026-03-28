@@ -7,18 +7,21 @@ const helpText = `quotamaxxer — rate limit visibility for Claude Code
 Usage:
   quotamaxxer [flags] [-- claude-args...]    Start proxy, optionally guard, then run claude
   quotamaxxer guard [flags]                  Wait for rate limits, then exit
+  quotamaxxer proxy                          Run standalone proxy server
+  quotamaxxer statusline-persist             Read JSON from stdin, write usage files
 
-Wrapper flags (before --):
+Flags (before --):
   --threshold-5h <ratio>   Wait until 5h burn ratio drops below this (e.g. 0.8)
   --threshold-7d <ratio>   Wait until 7d burn ratio drops below this (e.g. 0.9)
   --wait-timeout <dur>     Max guard wait time (e.g. 30m, 1h). 0 = forever (default)
-  --run-timeout <dur>      Max claude run time (e.g. 2h). 0 = forever (default)
+  --run-timeout <dur>      Max claude run time (e.g. 2h). Headless only. 0 = forever (default)
   --source <src>           Data source: both (default), proxy, statusline
+  --data-dir <path>        Data directory (default: ~/.claude/ralph-quotamaxxer/data)
   --quiet                  Suppress waiting output
   --help                   Show this help
 
 Guard flags:
-  --threshold-5h, --threshold-7d, --wait-timeout, --source, --quiet
+  --threshold-5h, --threshold-7d, --wait-timeout, --source, --data-dir, --quiet
   Exits 0 when clear, 1 on timeout.
 
 Burn ratio = used_pct / elapsed_pct, where elapsed_pct is the fraction of the

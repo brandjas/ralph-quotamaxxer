@@ -62,7 +62,7 @@ Everything installs into `~/.claude/ralph-quotamaxxer/`, so it works inside devc
 alias claude='~/.claude/ralph-quotamaxxer/bin/quotamaxxer --'
 ```
 
-`quotamaxxer` uses `exec` to hand off to `claude`, so exit codes propagate correctly.
+`quotamaxxer` is a single Go binary. It starts an in-process reverse proxy, runs `claude` as a child, and propagates exit codes correctly.
 
 ## Usage
 
@@ -132,14 +132,14 @@ All via environment variables, no config files:
 |---|---|---|
 | `QUOTAMAXXER_DATA_DIR` | `~/.claude/ralph-quotamaxxer/data` | Data directory |
 | `QUOTAMAXXER_UPSTREAM` | `https://api.anthropic.com` | Upstream URL |
-| `QUOTAMAXXER_PORT` | `0` (OS-assigned) | Proxy listen port |
+| `QUOTAMAXXER_PORT` | `0` (OS-assigned) | Proxy listen port (standalone `proxy` subcommand only) |
 | `QUOTAMAXXER_MAX_HISTORY_BYTES` | `10485760` (10 MB) | History rotation threshold |
 
 ## How it works
 
-The `quotamaxxer` wrapper starts a local Go reverse proxy, points Claude Code at it via `ANTHROPIC_BASE_URL`, then `exec`s `claude`. The proxy sits between Claude Code and `api.anthropic.com`, extracting `anthropic-ratelimit-unified-*` headers from every response and writing them to disk. No body inspection, no header mutation, SSE streaming passes through, and upstream errors (including 429s) are forwarded as-is. Go standard library only.
+`quotamaxxer` is a single Go binary that starts an in-process reverse proxy on an ephemeral port, points Claude Code at it via `ANTHROPIC_BASE_URL`, then runs `claude` as a child process. The proxy sits between Claude Code and `api.anthropic.com`, extracting `anthropic-ratelimit-unified-*` headers from every response and writing them to disk. No body inspection, no header mutation, SSE streaming passes through, and upstream errors (including 429s) are forwarded as-is. Go standard library only.
 
-The proxy lives and dies with the `claude` process. No daemons, no PID files, no port conflicts.
+The proxy is an in-process goroutine — no daemons, no PID files, no port conflicts, no orphaned processes.
 
 <details>
 <summary><b>History schema</b></summary>

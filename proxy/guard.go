@@ -160,6 +160,104 @@ func formatDuration(seconds float64) string {
 	return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
 }
 
+type guardConfig struct {
+	Threshold5h float64
+	Threshold7d float64
+	DataDir     string
+	WaitTimeout time.Duration
+	Quiet       bool
+	Source      string
+}
+
+// guardLoop runs the guard wait loop. Returns nil when clear, error on timeout.
+func guardLoop(cfg guardConfig) error {
+	deadline := time.Time{}
+	if cfg.WaitTimeout > 0 {
+		deadline = time.Now().Add(cfg.WaitTimeout)
+	}
+
+	for {
+		snap, err := readLatestUsage(cfg.DataDir, cfg.Source)
+		if err != nil {
+			if !cfg.Quiet {
+				fmt.Fprintln(os.Stderr, "quotamaxxer: no usage data found, proceeding")
+			}
+			return nil
+		}
+
+		now := time.Now().Unix()
+		var maxSleep float64
+		var worstWindow string
+		var worstBurn, worstThreshold float64
+
+		if cfg.Threshold5h > 0 && snap.FiveHourReset > 0 {
+			burn := computeBurnRatio(snap.FiveHourUtil, snap.FiveHourReset, window5hSeconds)
+			if burn > cfg.Threshold5h {
+				ep := elapsedPct(snap.FiveHourReset, window5hSeconds)
+				s := computeSleepSeconds(snap.FiveHourUtil, cfg.Threshold5h, ep, window5hSeconds)
+				if untilReset := float64(snap.FiveHourReset - now); untilReset > 0 && s > untilReset {
+					s = untilReset
+				}
+				if s > maxSleep {
+					maxSleep = s
+					worstWindow = "5h"
+					worstBurn = burn
+					worstThreshold = cfg.Threshold5h
+				}
+			}
+		}
+
+		if cfg.Threshold7d > 0 && snap.SevenDayReset > 0 {
+			burn := computeBurnRatio(snap.SevenDayUtil, snap.SevenDayReset, window7dSeconds)
+			if burn > cfg.Threshold7d {
+				ep := elapsedPct(snap.SevenDayReset, window7dSeconds)
+				s := computeSleepSeconds(snap.SevenDayUtil, cfg.Threshold7d, ep, window7dSeconds)
+				if untilReset := float64(snap.SevenDayReset - now); untilReset > 0 && s > untilReset {
+					s = untilReset
+				}
+				if s > maxSleep {
+					maxSleep = s
+					worstWindow = "7d"
+					worstBurn = burn
+					worstThreshold = cfg.Threshold7d
+				}
+			}
+		}
+
+		if maxSleep <= 0 {
+			if !cfg.Quiet {
+				fmt.Fprintln(os.Stderr, "quotamaxxer: rate limits OK, proceeding")
+			}
+			return nil
+		}
+
+		if !deadline.IsZero() && time.Now().After(deadline) {
+			return fmt.Errorf("quotamaxxer: timeout, %s burn ratio still %.2f (threshold %.2f)",
+				worstWindow, worstBurn, worstThreshold)
+		}
+
+		sleepDur := maxSleep
+
+		if !deadline.IsZero() {
+			remaining := time.Until(deadline).Seconds()
+			if remaining < sleepDur {
+				sleepDur = remaining
+			}
+		}
+
+		if sleepDur < 1 {
+			sleepDur = 1
+		}
+
+		if !cfg.Quiet {
+			fmt.Fprintf(os.Stderr, "quotamaxxer: waiting %s — %s burn %.2f > %.2f\n",
+				formatDuration(sleepDur), worstWindow, worstBurn, worstThreshold)
+		}
+
+		time.Sleep(time.Duration(sleepDur * float64(time.Second)))
+	}
+}
+
 func runGuard(args []string) {
 	fs := flag.NewFlagSet("guard", flag.ExitOnError)
 	threshold5h := fs.Float64("threshold-5h", 0, "5h burn ratio threshold")
@@ -175,7 +273,6 @@ func runGuard(args []string) {
 		os.Exit(1)
 	}
 
-	// Validate source.
 	switch *source {
 	case "both", "proxy", "statusline":
 	default:
@@ -183,96 +280,17 @@ func runGuard(args []string) {
 		os.Exit(1)
 	}
 
-	deadline := time.Time{}
-	if *timeout > 0 {
-		deadline = time.Now().Add(*timeout)
+	cfg := guardConfig{
+		Threshold5h: *threshold5h,
+		Threshold7d: *threshold7d,
+		DataDir:     *dataDir,
+		WaitTimeout: *timeout,
+		Quiet:       *quiet,
+		Source:      *source,
 	}
 
-	for {
-		snap, err := readLatestUsage(*dataDir, *source)
-		if err != nil {
-			// No data = no concern.
-			if !*quiet {
-				fmt.Fprintln(os.Stderr, "quotamaxxer: no usage data found, proceeding")
-			}
-			return
-		}
-
-		now := time.Now().Unix()
-		var maxSleep float64
-		var worstWindow string
-		var worstBurn, worstThreshold float64
-
-		if *threshold5h > 0 && snap.FiveHourReset > 0 {
-			burn := computeBurnRatio(snap.FiveHourUtil, snap.FiveHourReset, window5hSeconds)
-			if burn > *threshold5h {
-				ep := elapsedPct(snap.FiveHourReset, window5hSeconds)
-				s := computeSleepSeconds(snap.FiveHourUtil, *threshold5h, ep, window5hSeconds)
-				// Never sleep past reset — utilization resets then.
-				if untilReset := float64(snap.FiveHourReset - now); untilReset > 0 && s > untilReset {
-					s = untilReset
-				}
-				if s > maxSleep {
-					maxSleep = s
-					worstWindow = "5h"
-					worstBurn = burn
-					worstThreshold = *threshold5h
-				}
-			}
-		}
-
-		if *threshold7d > 0 && snap.SevenDayReset > 0 {
-			burn := computeBurnRatio(snap.SevenDayUtil, snap.SevenDayReset, window7dSeconds)
-			if burn > *threshold7d {
-				ep := elapsedPct(snap.SevenDayReset, window7dSeconds)
-				s := computeSleepSeconds(snap.SevenDayUtil, *threshold7d, ep, window7dSeconds)
-				// Never sleep past reset — utilization resets then.
-				if untilReset := float64(snap.SevenDayReset - now); untilReset > 0 && s > untilReset {
-					s = untilReset
-				}
-				if s > maxSleep {
-					maxSleep = s
-					worstWindow = "7d"
-					worstBurn = burn
-					worstThreshold = *threshold7d
-				}
-			}
-		}
-
-		if maxSleep <= 0 {
-			if !*quiet {
-				fmt.Fprintln(os.Stderr, "quotamaxxer: rate limits OK, proceeding")
-			}
-			return
-		}
-
-		// Check timeout.
-		if !deadline.IsZero() && time.Now().After(deadline) {
-			fmt.Fprintf(os.Stderr, "quotamaxxer: timeout, %s burn ratio still %.2f (threshold %.2f)\n",
-				worstWindow, worstBurn, worstThreshold)
-			os.Exit(1)
-		}
-
-		sleepDur := maxSleep
-
-		// Don't sleep past deadline.
-		if !deadline.IsZero() {
-			remaining := time.Until(deadline).Seconds()
-			if remaining < sleepDur {
-				sleepDur = remaining
-			}
-		}
-
-		// Floor at 1s to avoid busy-looping on rounding.
-		if sleepDur < 1 {
-			sleepDur = 1
-		}
-
-		if !*quiet {
-			fmt.Fprintf(os.Stderr, "quotamaxxer: waiting %s — %s burn %.2f > %.2f\n",
-				formatDuration(sleepDur), worstWindow, worstBurn, worstThreshold)
-		}
-
-		time.Sleep(time.Duration(sleepDur * float64(time.Second)))
+	if err := guardLoop(cfg); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }

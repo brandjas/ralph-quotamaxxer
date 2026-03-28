@@ -70,20 +70,16 @@ echo "Version: $VERSION"
 mkdir -p "$DEST_DIR/bin" "$DEST_DIR/data"
 
 # Download binary.
-BINARY_URL="https://github.com/$REPO/releases/download/$VERSION/quotamaxxer-proxy-$PLATFORM"
+BINARY_URL="https://github.com/$REPO/releases/download/$VERSION/quotamaxxer-$PLATFORM"
 echo "Downloading binary..."
-download "$BINARY_URL" "$DEST_DIR/bin/quotamaxxer-proxy"
-chmod +x "$DEST_DIR/bin/quotamaxxer-proxy"
-
-# Download wrapper + statusline scripts.
-echo "Downloading scripts..."
-download "$RAW_BASE/proxy/wrapper.sh" "$DEST_DIR/bin/quotamaxxer"
+download "$BINARY_URL" "$DEST_DIR/bin/quotamaxxer"
 chmod +x "$DEST_DIR/bin/quotamaxxer"
 
+# Download statusline scripts.
+echo "Downloading scripts..."
 mkdir -p "$DEST_DIR/statusline"
 download "$RAW_BASE/statusline/statusline.sh"   "$DEST_DIR/statusline/statusline.sh"
 download "$RAW_BASE/statusline/parse.sh"        "$DEST_DIR/statusline/parse.sh"
-download "$RAW_BASE/statusline/persist.sh"      "$DEST_DIR/statusline/persist.sh"
 chmod +x "$DEST_DIR/statusline/statusline.sh"
 
 echo ""

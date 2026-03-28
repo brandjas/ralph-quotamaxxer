@@ -28,7 +28,7 @@ fi
 
 # Start proxy on OS-assigned ephemeral port.
 echo "Starting proxy..."
-QUOTAMAXXER_DATA_DIR="$DATA_DIR" QUOTAMAXXER_PORT_FILE="$PORT_FILE" "$PROXY_BIN" &
+QUOTAMAXXER_DATA_DIR="$DATA_DIR" QUOTAMAXXER_PORT_FILE="$PORT_FILE" "$PROXY_BIN" proxy &
 PROXY_PID=$!
 
 # Wait for port file to be written.
