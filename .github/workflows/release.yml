@@ -33,11 +33,11 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           cd cmd/quotamaxxer
-          go build -o ../../quotamaxxer-proxy-${{ matrix.goos }}-${{ matrix.goarch }} .
+          go build -o ../../quotamaxxer-${{ matrix.goos }}-${{ matrix.goarch }} .
       - uses: actions/upload-artifact@v7
         with:
-          name: quotamaxxer-proxy-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: quotamaxxer-proxy-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: quotamaxxer-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: quotamaxxer-${{ matrix.goos }}-${{ matrix.goarch }}
 
   release:
     needs: build
@@ -51,8 +51,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          chmod +x quotamaxxer-proxy-*
+          chmod +x quotamaxxer-*
           gh release create "${{ github.ref_name }}" \
             --title "${{ github.ref_name }}" \
             --generate-notes \
-            quotamaxxer-proxy-*
+            quotamaxxer-*
