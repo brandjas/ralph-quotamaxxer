@@ -23,7 +23,7 @@ echo "Data dir: $DATA_DIR"
 if [[ -z "$PROXY_BIN" ]]; then
     echo "Building proxy..."
     PROXY_BIN="$DATA_DIR/quotamaxxer-proxy"
-    (cd "$REPO_DIR/proxy" && go build -o "$PROXY_BIN" .)
+    (cd "$REPO_DIR/cmd/quotamaxxer" && go build -o "$PROXY_BIN" .)
 fi
 
 # Start proxy on OS-assigned ephemeral port.

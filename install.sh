@@ -8,7 +8,7 @@ DEST_DIR="$HOME/.claude/ralph-quotamaxxer"
 # Build binary.
 echo "Building quotamaxxer..."
 mkdir -p "$DEST_DIR/bin" "$DEST_DIR/data"
-(cd "$REPO_DIR/proxy" && go build -o "$DEST_DIR/bin/quotamaxxer" .)
+(cd "$REPO_DIR/cmd/quotamaxxer" && go build -o "$DEST_DIR/bin/quotamaxxer" .)
 echo "Installed to $DEST_DIR/bin/quotamaxxer"
 echo ""
 echo "To enable the statusline, add this to ~/.claude/settings.json:"
