@@ -265,7 +265,7 @@ func runGuard(args []string) {
 	dataDir := fs.String("data-dir", resolveDefaultDataDir(), "data directory")
 	timeout := fs.Duration("wait-timeout", 0, "max wait time (0 = forever)")
 	quiet := fs.Bool("quiet", false, "suppress output")
-	source := fs.String("source", "both", "data source: both, proxy, statusline")
+	source := fs.String("source", "proxy", "data source: proxy (default), both, statusline")
 	fs.Parse(args)
 
 	if *threshold5h == 0 && *threshold7d == 0 {

@@ -22,7 +22,7 @@ load helpers
 
 @test "guard: reads statusline format" {
     write_statusline_json 10 10 0.2 0.2
-    run "$QM_BIN" guard --threshold-5h 0.8 --data-dir "$DATA_DIR" --quiet
+    run "$QM_BIN" guard --threshold-5h 0.8 --data-dir "$DATA_DIR" --source statusline --quiet
     [ "$status" -eq 0 ]
 }
 
@@ -44,7 +44,7 @@ load helpers
     OLD_EPOCH=$(( NOW - 60 ))
     write_proxy_json 0.95 0.95 "$OLD_EPOCH"
     write_statusline_json 10 10 0.2 0.2 "$NOW"
-    run "$QM_BIN" guard --threshold-5h 0.5 --threshold-7d 0.5 --data-dir "$DATA_DIR" --wait-timeout 1s --quiet
+    run "$QM_BIN" guard --threshold-5h 0.5 --threshold-7d 0.5 --data-dir "$DATA_DIR" --source both --wait-timeout 1s --quiet
     [ "$status" -eq 0 ]
 }
 

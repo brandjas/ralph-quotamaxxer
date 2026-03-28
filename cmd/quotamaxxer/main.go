@@ -54,6 +54,9 @@ var writeCh = make(chan map[string]string, 1)
 func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "monitor":
+			runMonitor(os.Args[2:])
+			return
 		case "guard":
 			runGuard(os.Args[2:])
 			return

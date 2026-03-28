@@ -7,6 +7,7 @@ const helpText = `quotamaxxer — rate limit visibility for Claude Code
 Usage:
   quotamaxxer [flags] [-- claude-args...]    Start proxy, optionally guard, then run claude
   quotamaxxer guard [flags]                  Wait for rate limits, then exit
+  quotamaxxer monitor [flags]                Live TUI dashboard for rate limits
   quotamaxxer proxy                          Run standalone proxy server
   quotamaxxer statusline                     Claude Code statusline (reads JSON from stdin)
 
@@ -15,7 +16,7 @@ Flags (before --):
   --threshold-7d <ratio>   Wait until 7d burn ratio drops below this (e.g. 0.9)
   --wait-timeout <dur>     Max guard wait time (e.g. 30m, 1h). 0 = forever (default)
   --run-timeout <dur>      Max claude run time (e.g. 2h). Headless only. 0 = forever (default)
-  --source <src>           Data source: both (default), proxy, statusline
+  --source <src>           Data source: proxy (default), both, statusline
   --data-dir <path>        Data directory (default: ~/.claude/ralph-quotamaxxer/data)
   --claude-command <cmd>   Command to run instead of claude (default: claude)
   --quiet                  Suppress waiting output

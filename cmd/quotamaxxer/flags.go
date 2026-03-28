@@ -30,7 +30,7 @@ func parseOrchestratorArgs(args []string) (orchestratorConfig, error) {
 	fs.Float64Var(&cfg.Threshold7d, "threshold-7d", 0, "")
 	fs.DurationVar(&cfg.WaitTimeout, "wait-timeout", 0, "")
 	fs.DurationVar(&cfg.RunTimeout, "run-timeout", 0, "")
-	fs.StringVar(&cfg.Source, "source", "both", "")
+	fs.StringVar(&cfg.Source, "source", "proxy", "")
 	fs.BoolVar(&cfg.Quiet, "quiet", false, "")
 	fs.StringVar(&cfg.DataDir, "data-dir", resolveDefaultDataDir(), "")
 	fs.StringVar(&cfg.ClaudeCmd, "claude-command", "claude", "")
