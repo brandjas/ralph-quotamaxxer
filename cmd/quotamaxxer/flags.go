@@ -8,14 +8,15 @@ import (
 )
 
 type orchestratorConfig struct {
-	Threshold5h float64
-	Threshold7d float64
-	WaitTimeout time.Duration
-	RunTimeout  time.Duration
-	Source      string
-	Quiet       bool
-	DataDir     string
-	ClaudeArgs  []string
+	Threshold5h  float64
+	Threshold7d  float64
+	WaitTimeout  time.Duration
+	RunTimeout   time.Duration
+	Source       string
+	Quiet        bool
+	DataDir      string
+	ClaudeCmd    string
+	ClaudeArgs   []string
 }
 
 // parseOrchestratorArgs splits args on the first "--" and parses quotamaxxer
@@ -23,8 +24,9 @@ type orchestratorConfig struct {
 // If no "--" is found, all args become ClaudeArgs (no quotamaxxer flags).
 func parseOrchestratorArgs(args []string) (orchestratorConfig, error) {
 	cfg := orchestratorConfig{
-		Source:  "both",
-		DataDir: resolveDefaultDataDir(),
+		Source:    "both",
+		DataDir:   resolveDefaultDataDir(),
+		ClaudeCmd: "claude",
 	}
 
 	// Find the first "--".
@@ -105,6 +107,12 @@ func parseOrchestratorArgs(args []string) (orchestratorConfig, error) {
 				return cfg, err
 			}
 			cfg.DataDir = v
+		case "--claude-command":
+			v, err := requireArg(qmArgs, &i, "--claude-command")
+			if err != nil {
+				return cfg, err
+			}
+			cfg.ClaudeCmd = v
 		case "--quiet":
 			cfg.Quiet = true
 		case "--help", "-h":

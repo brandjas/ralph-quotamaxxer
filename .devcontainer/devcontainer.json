@@ -17,7 +17,7 @@
             "installOhMyZsh": true,
             "configureZshAsDefaultShell": true,
             "upgradePackages": false
-        }
+        },
     },
     "containerEnv": {
         "LANG": "en_US.UTF-8",

@@ -5,6 +5,7 @@ ENV LANG=en_US.utf8
 
 # System packages (requires root).
 RUN apt-get update && apt-get install -y \
+    bats \
     build-essential ca-certificates curl gdb git gpg \
     htop jq sudo tmux vim
 

@@ -46,8 +46,8 @@ func runOrchestrator(args []string) int {
 	}
 	defer shutdownProxy()
 
-	// Launch claude.
-	cmd := exec.Command("claude", cfg.ClaudeArgs...)
+	// Launch claude (or custom command via --claude-command).
+	cmd := exec.Command(cfg.ClaudeCmd, cfg.ClaudeArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -17,6 +17,7 @@ Flags (before --):
   --run-timeout <dur>      Max claude run time (e.g. 2h). Headless only. 0 = forever (default)
   --source <src>           Data source: both (default), proxy, statusline
   --data-dir <path>        Data directory (default: ~/.claude/ralph-quotamaxxer/data)
+  --claude-command <cmd>   Command to run instead of claude (default: claude)
   --quiet                  Suppress waiting output
   --help                   Show this help
 
