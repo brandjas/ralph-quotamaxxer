@@ -51,13 +51,13 @@ load helpers
 @test "orchestrator: unknown flag before -- exits 1" {
     run "$QM_BIN" --bogus-flag --
     [ "$status" -eq 1 ]
-    [[ "$output" == *"unknown flag"* ]]
+    [[ "$output" == *"not defined"* ]]
 }
 
-@test "orchestrator: --threshold-5h requires a value" {
+@test "orchestrator: --threshold-5h without value exits 1" {
     run "$QM_BIN" --threshold-5h --
     [ "$status" -eq 1 ]
-    [[ "$output" == *"requires a value"* ]]
+    [[ "$output" == *"invalid value"* ]]
 }
 
 @test "orchestrator: guard blocks then child runs" {
