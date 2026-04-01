@@ -114,7 +114,7 @@ After each API call, rate limit data is written to `~/.claude/ralph-quotamaxxer/
 | File | Contents |
 |---|---|
 | `usage-proxy.json` | Latest rate limit snapshot from the proxy |
-| `usage-history.jsonl` | Append-only history (auto-rotates at 10 MB) |
+| `usage-history.jsonl` | Append-only history (rotation disabled by default) |
 
 The binary also includes a statusline subcommand that collects usage data from interactive sessions and displays quota percentages, model, context usage, and cost. To enable it, add this to `~/.claude/settings.json`:
 
@@ -133,7 +133,7 @@ All via environment variables, no config files:
 | `QUOTAMAXXER_DATA_DIR` | `~/.claude/ralph-quotamaxxer/data` | Data directory |
 | `QUOTAMAXXER_UPSTREAM` | `https://api.anthropic.com` | Upstream URL |
 | `QUOTAMAXXER_PORT` | `0` (OS-assigned) | Proxy listen port (standalone `proxy` subcommand only) |
-| `QUOTAMAXXER_MAX_HISTORY_BYTES` | `10485760` (10 MB) | History rotation threshold |
+| `QUOTAMAXXER_MAX_HISTORY_BYTES` | `0` (disabled) | History rotation threshold; set to a positive value to enable |
 
 ## How it works
 

@@ -198,7 +198,7 @@ func persistStatuslineData(dataDir string, status *claudeCodeStatus, now time.Ti
 	historyPath := filepath.Join(dataDir, "usage-history.jsonl")
 	lockPath := historyPath + ".lock"
 
-	maxHistoryBytes := int64(10 * 1024 * 1024)
+	var maxHistoryBytes int64 // 0 = no rotation (default)
 	if v := os.Getenv("QUOTAMAXXER_MAX_HISTORY_BYTES"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			maxHistoryBytes = n
