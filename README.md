@@ -64,6 +64,18 @@ alias claude='~/.claude/ralph-quotamaxxer/bin/quotamaxxer --'
 
 `quotamaxxer` is a single Go binary. It starts an in-process reverse proxy, runs `claude` as a child, and propagates exit codes correctly.
 
+## Monitor
+
+Live TUI dashboard for watching your rate limits:
+
+```bash
+quotamaxxer monitor
+```
+
+![quotamaxxer monitor](assets/monitor.png)
+
+Shows 5-hour and 7-day utilization sparklines with current burn rates, time until reset, and color-coded stats. Backfills from history on startup, polls every 2 seconds. Press `q` to quit.
+
 ## Usage
 
 > [!IMPORTANT]
@@ -99,7 +111,7 @@ echo "🚀 quota headroom available, let's go"
 | `--threshold-7d <ratio>` | Wait until 7d burn ratio drops below this |
 | `--wait-timeout <dur>` | Max guard wait time (e.g. `30m`, `1h`). Exit 1 if exceeded. Default: forever |
 | `--run-timeout <dur>` | Max claude run time (e.g. `2h`). Exit 124 if exceeded. Headless only. Default: forever |
-| `--source <src>` | Data source: `both` (default), `proxy`, `statusline` |
+| `--source <src>` | Data source: `proxy` (default), `both`, `statusline` |
 | `--quiet` | Suppress waiting output |
 | `--help` | Show help |
 
@@ -133,7 +145,7 @@ All via environment variables, no config files:
 | `QUOTAMAXXER_DATA_DIR` | `~/.claude/ralph-quotamaxxer/data` | Data directory |
 | `QUOTAMAXXER_UPSTREAM` | `https://api.anthropic.com` | Upstream URL |
 | `QUOTAMAXXER_PORT` | `0` (OS-assigned) | Proxy listen port (standalone `proxy` subcommand only) |
-| `QUOTAMAXXER_MAX_HISTORY_BYTES` | `0` (disabled) | History rotation threshold; set to a positive value to enable |
+| `QUOTAMAXXER_MAX_HISTORY_BYTES` | `0` (disabled) | History rotation threshold (0 = no rotation) |
 
 ## How it works
 
