@@ -196,68 +196,68 @@ func parseHeaders(headers map[string]string) ratelimitData {
 	if v, ok := headers[headerPrefix+"representative-claim"]; ok {
 		data.RepresentativeClaim = v
 	}
-	if u, ok := headers[headerPrefix+"5h-utilization"]; ok {
-		w := &windowData{}
-		w.Utilization, _ = strconv.ParseFloat(u, 64)
-		if r, ok2 := headers[headerPrefix+"5h-reset"]; ok2 {
-			w.Reset, _ = strconv.ParseInt(r, 10, 64)
-		}
-		data.FiveHour = w
-	}
-	if u, ok := headers[headerPrefix+"7d-utilization"]; ok {
-		w := &windowData{}
-		w.Utilization, _ = strconv.ParseFloat(u, 64)
-		if r, ok2 := headers[headerPrefix+"7d-reset"]; ok2 {
-			w.Reset, _ = strconv.ParseInt(r, 10, 64)
-		}
-		data.SevenDay = w
-	}
+	data.FiveHour = parseWindowHeaders(headers, "5h")
+	data.SevenDay = parseWindowHeaders(headers, "7d")
 	if s, ok := headers[headerPrefix+"overage-status"]; ok {
 		data.Overage = &overageData{Status: s}
 	}
 	return data
 }
 
+func parseWindowHeaders(headers map[string]string, prefix string) *windowData {
+	u, ok := headers[headerPrefix+prefix+"-utilization"]
+	if !ok {
+		return nil
+	}
+	w := &windowData{}
+	w.Utilization, _ = strconv.ParseFloat(u, 64)
+	if r, ok2 := headers[headerPrefix+prefix+"-reset"]; ok2 {
+		w.Reset, _ = strconv.ParseInt(r, 10, 64)
+	}
+	return w
+}
+
 func asyncWriter(dataDir string) {
 	snapshotPath := filepath.Join(dataDir, "usage-proxy.json")
 	historyPath := filepath.Join(dataDir, "usage-history.jsonl")
-	lockPath := historyPath + ".lock"
-	var maxHistoryBytes int64 // 0 = no rotation (default)
-
-	if v := os.Getenv("QUOTAMAXXER_MAX_HISTORY_BYTES"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			maxHistoryBytes = n
-		}
-	}
+	maxHistoryBytes := maxHistoryBytesFromEnv()
 
 	for headers := range writeCh {
 		data := parseHeaders(headers)
-
-		// Write usage-proxy.json (pretty-printed, atomic).
-		pretty, err := json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			log.Printf("json marshal error: %v", err)
-			continue
+		if err := persistAndAppendHistory(snapshotPath, historyPath, data, maxHistoryBytes); err != nil {
+			log.Printf("proxy persist: %v", err)
 		}
-		pretty = append(pretty, '\n')
-		tmp := snapshotPath + ".tmp"
-		if err := os.WriteFile(tmp, pretty, 0644); err != nil {
-			log.Printf("write tmp error: %v", err)
-			continue
-		}
-		if err := os.Rename(tmp, snapshotPath); err != nil {
-			log.Printf("rename error: %v", err)
-		}
-
-		// Append to usage-history.jsonl (compact, flock-guarded).
-		compact, err := json.Marshal(data)
-		if err != nil {
-			log.Printf("json marshal error (history): %v", err)
-			continue
-		}
-		compact = append(compact, '\n')
-		appendHistory(historyPath, lockPath, compact, maxHistoryBytes)
 	}
+}
+
+// persistAndAppendHistory writes data as pretty JSON to snapshotPath (atomic)
+// and appends a compact JSON line to historyPath (flock-guarded).
+func persistAndAppendHistory(snapshotPath, historyPath string, data any, maxHistoryBytes int64) error {
+	pretty, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Errorf("json marshal: %w", err)
+	}
+	pretty = append(pretty, '\n')
+	if err := atomicWriteFile(snapshotPath, pretty); err != nil {
+		return fmt.Errorf("write snapshot: %w", err)
+	}
+
+	compact, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("json marshal (history): %w", err)
+	}
+	compact = append(compact, '\n')
+	lockPath := historyPath + ".lock"
+	appendHistory(historyPath, lockPath, compact, maxHistoryBytes)
+	return nil
+}
+
+func atomicWriteFile(path string, data []byte) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 func appendHistory(path, lockPath string, line []byte, maxBytes int64) {
@@ -324,6 +324,15 @@ func resolveDefaultDataDir() string {
 		home = os.Getenv("HOME")
 	}
 	return filepath.Join(home, ".claude", "ralph-quotamaxxer", "data")
+}
+
+func maxHistoryBytesFromEnv() int64 {
+	if v := os.Getenv("QUOTAMAXXER_MAX_HISTORY_BYTES"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return n
+		}
+	}
+	return 0
 }
 
 func envOr(key, fallback string) string {

@@ -125,13 +125,7 @@ func readLatestUsage(dataDir, source string) (usageSnapshot, error) {
 }
 
 func computeBurnRatio(util float64, resetEpoch int64, windowDuration int64) float64 {
-	now := time.Now().Unix()
-	secondsUntilReset := resetEpoch - now
-	elapsedPct := float64(windowDuration-secondsUntilReset) / float64(windowDuration)
-	if elapsedPct < 0.001 {
-		elapsedPct = 0.001
-	}
-	return util / elapsedPct
+	return util / elapsedPct(resetEpoch, windowDuration)
 }
 
 func computeSleepSeconds(util, threshold, elapsedPct float64, windowDuration int64) float64 {
@@ -169,6 +163,21 @@ type guardConfig struct {
 	Source      string
 }
 
+// checkWindowBurn checks whether a single rate-limit window exceeds its
+// threshold and returns the burn ratio and required sleep duration.
+func checkWindowBurn(util float64, resetEpoch, windowDuration int64, threshold float64, now int64) (burn, sleep float64) {
+	burn = computeBurnRatio(util, resetEpoch, windowDuration)
+	if burn <= threshold {
+		return burn, 0
+	}
+	ep := elapsedPct(resetEpoch, windowDuration)
+	sleep = computeSleepSeconds(util, threshold, ep, windowDuration)
+	if untilReset := float64(resetEpoch - now); untilReset > 0 && sleep > untilReset {
+		sleep = untilReset
+	}
+	return burn, sleep
+}
+
 // guardLoop runs the guard wait loop. Returns nil when clear, error on timeout.
 func guardLoop(cfg guardConfig) error {
 	deadline := time.Time{}
@@ -190,37 +199,26 @@ func guardLoop(cfg guardConfig) error {
 		var worstWindow string
 		var worstBurn, worstThreshold float64
 
-		if cfg.Threshold5h > 0 && snap.FiveHourReset > 0 {
-			burn := computeBurnRatio(snap.FiveHourUtil, snap.FiveHourReset, window5hSeconds)
-			if burn > cfg.Threshold5h {
-				ep := elapsedPct(snap.FiveHourReset, window5hSeconds)
-				s := computeSleepSeconds(snap.FiveHourUtil, cfg.Threshold5h, ep, window5hSeconds)
-				if untilReset := float64(snap.FiveHourReset - now); untilReset > 0 && s > untilReset {
-					s = untilReset
-				}
-				if s > maxSleep {
-					maxSleep = s
-					worstWindow = "5h"
-					worstBurn = burn
-					worstThreshold = cfg.Threshold5h
-				}
-			}
+		type windowCheck struct {
+			name      string
+			util      float64
+			reset     int64
+			window    int64
+			threshold float64
 		}
-
-		if cfg.Threshold7d > 0 && snap.SevenDayReset > 0 {
-			burn := computeBurnRatio(snap.SevenDayUtil, snap.SevenDayReset, window7dSeconds)
-			if burn > cfg.Threshold7d {
-				ep := elapsedPct(snap.SevenDayReset, window7dSeconds)
-				s := computeSleepSeconds(snap.SevenDayUtil, cfg.Threshold7d, ep, window7dSeconds)
-				if untilReset := float64(snap.SevenDayReset - now); untilReset > 0 && s > untilReset {
-					s = untilReset
-				}
-				if s > maxSleep {
-					maxSleep = s
-					worstWindow = "7d"
-					worstBurn = burn
-					worstThreshold = cfg.Threshold7d
-				}
+		for _, w := range []windowCheck{
+			{"5h", snap.FiveHourUtil, snap.FiveHourReset, window5hSeconds, cfg.Threshold5h},
+			{"7d", snap.SevenDayUtil, snap.SevenDayReset, window7dSeconds, cfg.Threshold7d},
+		} {
+			if w.threshold <= 0 || w.reset <= 0 {
+				continue
+			}
+			burn, s := checkWindowBurn(w.util, w.reset, w.window, w.threshold, now)
+			if s > maxSleep {
+				maxSleep = s
+				worstWindow = w.name
+				worstBurn = burn
+				worstThreshold = w.threshold
 			}
 		}
 
@@ -273,10 +271,8 @@ func runGuard(args []string) {
 		os.Exit(1)
 	}
 
-	switch *source {
-	case "both", "proxy", "statusline":
-	default:
-		fmt.Fprintf(os.Stderr, "quotamaxxer guard: invalid --source %q (must be both, proxy, or statusline)\n", *source)
+	if err := validateSource(*source); err != nil {
+		fmt.Fprintf(os.Stderr, "quotamaxxer guard: %v\n", err)
 		os.Exit(1)
 	}
 

@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 )
 
@@ -95,11 +94,7 @@ func burnIndicator(ratio float64) string {
 }
 
 func statuslineBurnRatio(usedPct float64, resetsAt int64, now int64, windowDuration int64) float64 {
-	elapsedPct := float64(windowDuration-(resetsAt-now)) / float64(windowDuration) * 100
-	if elapsedPct < 0.1 {
-		elapsedPct = 0.1
-	}
-	ratio := usedPct / elapsedPct
+	ratio := computeBurnRatio(usedPct/100, resetsAt, windowDuration)
 	return math.Round(ratio*100) / 100
 }
 
@@ -177,33 +172,7 @@ func persistStatuslineData(dataDir string, status *claudeCodeStatus, now time.Ti
 		data.RateLimits.SevenDay.BurnRatio = burn7d
 	}
 
-	pretty, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return
-	}
-	pretty = append(pretty, '\n')
-
-	// Write usage-statusline.json atomically.
 	snapshotPath := filepath.Join(dataDir, "usage-statusline.json")
-	tmp := snapshotPath + ".tmp"
-	if err := os.WriteFile(tmp, pretty, 0644); err != nil {
-		return
-	}
-	os.Rename(tmp, snapshotPath)
-
-	// Append compact JSON to history.
-	compact, _ := json.Marshal(data)
-	compact = append(compact, '\n')
-
 	historyPath := filepath.Join(dataDir, "usage-history.jsonl")
-	lockPath := historyPath + ".lock"
-
-	var maxHistoryBytes int64 // 0 = no rotation (default)
-	if v := os.Getenv("QUOTAMAXXER_MAX_HISTORY_BYTES"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			maxHistoryBytes = n
-		}
-	}
-
-	appendHistory(historyPath, lockPath, compact, maxHistoryBytes)
+	persistAndAppendHistory(snapshotPath, historyPath, data, maxHistoryBytesFromEnv())
 }

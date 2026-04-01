@@ -365,21 +365,19 @@ func (m monitorModel) View() string {
 
 	sh := chartHeight(m.height)
 	sw := sparklineWidth(m.width)
+	yAxis := renderYAxis(sh)
+	padding := strings.Repeat(" ", yAxisWidth)
 
-	// 5-Hour chart with Y-axis and time axis.
-	yAxis5h := renderYAxis(sh)
 	chart5h := lipgloss.JoinVertical(lipgloss.Left,
 		styleBold.Render("5-Hour Utilization"),
-		lipgloss.JoinHorizontal(lipgloss.Top, yAxis5h, m.spark5h.View()),
-		strings.Repeat(" ", yAxisWidth)+renderTimeAxis(sw, window5hSeconds),
+		lipgloss.JoinHorizontal(lipgloss.Top, yAxis, m.spark5h.View()),
+		padding+renderTimeAxis(sw, window5hSeconds),
 	)
 
-	// 7-Day chart with Y-axis and time axis.
-	yAxis7d := renderYAxis(sh)
 	chart7d := lipgloss.JoinVertical(lipgloss.Left,
 		styleBold.Render("7-Day Utilization"),
-		lipgloss.JoinHorizontal(lipgloss.Top, yAxis7d, m.spark7d.View()),
-		strings.Repeat(" ", yAxisWidth)+renderTimeAxis(sw, window7dSeconds),
+		lipgloss.JoinHorizontal(lipgloss.Top, yAxis, m.spark7d.View()),
+		padding+renderTimeAxis(sw, window7dSeconds),
 	)
 
 	// Footer.
@@ -403,10 +401,8 @@ func runMonitor(args []string) {
 	source := fs.String("source", "proxy", "data source: proxy (default), both, statusline")
 	fs.Parse(args)
 
-	switch *source {
-	case "both", "proxy", "statusline":
-	default:
-		fmt.Fprintf(os.Stderr, "quotamaxxer monitor: invalid --source %q (must be both, proxy, or statusline)\n", *source)
+	if err := validateSource(*source); err != nil {
+		fmt.Fprintf(os.Stderr, "quotamaxxer monitor: %v\n", err)
 		os.Exit(1)
 	}
 

@@ -52,15 +52,21 @@ func parseOrchestratorArgs(args []string) (orchestratorConfig, error) {
 		os.Exit(0)
 	}
 
-	// Validate --source.
-	switch cfg.Source {
-	case "both", "proxy", "statusline":
-	default:
-		return cfg, fmt.Errorf("invalid --source %q (must be both, proxy, or statusline)", cfg.Source)
+	if err := validateSource(cfg.Source); err != nil {
+		return cfg, err
 	}
 
 	// Everything after "--" becomes claude args.
 	cfg.ClaudeArgs = fs.Args()
 
 	return cfg, nil
+}
+
+func validateSource(source string) error {
+	switch source {
+	case "both", "proxy", "statusline":
+		return nil
+	default:
+		return fmt.Errorf("invalid --source %q (must be both, proxy, or statusline)", source)
+	}
 }
