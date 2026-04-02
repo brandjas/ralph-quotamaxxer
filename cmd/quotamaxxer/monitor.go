@@ -76,7 +76,7 @@ func (r historyRecord) sevenDayPct() float64 {
 	return r.RateLimits.SevenDay.UsedPct
 }
 
-func loadHistory(dataDir string) []historyRecord {
+func loadHistory(dataDir, source string) []historyRecord {
 	path := filepath.Join(dataDir, "usage-history.jsonl")
 	f, err := os.Open(path)
 	if err != nil {
@@ -89,7 +89,8 @@ func loadHistory(dataDir string) []historyRecord {
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for scanner.Scan() {
 		var rec historyRecord
-		if json.Unmarshal(scanner.Bytes(), &rec) == nil && rec.epoch() > 0 {
+		if json.Unmarshal(scanner.Bytes(), &rec) == nil && rec.epoch() > 0 &&
+			(source == "both" || rec.Source == source) {
 			records = append(records, rec)
 		}
 	}
@@ -148,9 +149,9 @@ func sparklineWidth(termWidth int) int {
 }
 
 func chartHeight(termHeight int) int {
-	// header(3) + footer(2) = 5 fixed rows
+	// header(3) + footer(1) = 4 fixed rows
 	// 2 charts, each with 1 label + 1 time-axis row = 2 overhead per chart
-	chartArea := termHeight - 5 - 4 // 4 = 2 overhead × 2 charts
+	chartArea := termHeight - 4 - 4 // 4 = 2 overhead × 2 charts
 	if chartArea < 4 {
 		chartArea = 4
 	}
@@ -169,7 +170,7 @@ func buildSparkline(records []historyRecord, windowSec int64, sw, sh int, now in
 }
 
 func (m *monitorModel) rebuildCharts() {
-	records := loadHistory(m.dataDir)
+	records := loadHistory(m.dataDir, m.source)
 	sw := sparklineWidth(m.width)
 	sh := chartHeight(m.height)
 	now := time.Now().Unix()
