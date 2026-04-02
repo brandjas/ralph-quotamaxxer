@@ -128,15 +128,9 @@ func bucketHistory(records []historyRecord, windowSec int64, numBuckets int, now
 	for i := 0; i < numBuckets; i++ {
 		t := start + int64(float64(i)*step+step)
 		// Find rightmost record with epoch <= t.
-		lo, hi := 0, len(filtered)
-		for lo < hi {
-			mid := lo + (hi-lo)/2
-			if filtered[mid].epoch() <= t {
-				lo = mid + 1
-			} else {
-				hi = mid
-			}
-		}
+		lo := sort.Search(len(filtered), func(i int) bool {
+			return filtered[i].epoch() > t
+		})
 		if lo > 0 {
 			buckets[i] = getValue(filtered[lo-1])
 		}
@@ -167,23 +161,21 @@ func chartHeight(termHeight int) int {
 	return h
 }
 
+func buildSparkline(records []historyRecord, windowSec int64, sw, sh int, now int64, getValue func(historyRecord) float64) sparkline.Model {
+	s := sparkline.New(sw, sh, sparkline.WithMaxValue(100))
+	s.PushAll(bucketHistory(records, windowSec, sw, now, getValue))
+	s.Draw()
+	return s
+}
+
 func (m *monitorModel) rebuildCharts() {
 	records := loadHistory(m.dataDir)
-
 	sw := sparklineWidth(m.width)
 	sh := chartHeight(m.height)
-
-	m.spark5h = sparkline.New(sw, sh, sparkline.WithMaxValue(100))
-	m.spark7d = sparkline.New(sw, sh, sparkline.WithMaxValue(100))
-
 	now := time.Now().Unix()
-	data5h := bucketHistory(records, window5hSeconds, sw, now, historyRecord.fiveHourPct)
-	data7d := bucketHistory(records, window7dSeconds, sw, now, historyRecord.sevenDayPct)
 
-	m.spark5h.PushAll(data5h)
-	m.spark7d.PushAll(data7d)
-	m.spark5h.Draw()
-	m.spark7d.Draw()
+	m.spark5h = buildSparkline(records, window5hSeconds, sw, sh, now, historyRecord.fiveHourPct)
+	m.spark7d = buildSparkline(records, window7dSeconds, sw, sh, now, historyRecord.sevenDayPct)
 }
 
 func newMonitorModel(dataDir, source string) monitorModel {
@@ -368,17 +360,16 @@ func (m monitorModel) View() string {
 	yAxis := renderYAxis(sh)
 	padding := strings.Repeat(" ", yAxisWidth)
 
-	chart5h := lipgloss.JoinVertical(lipgloss.Left,
-		styleBold.Render("5-Hour Utilization"),
-		lipgloss.JoinHorizontal(lipgloss.Top, yAxis, m.spark5h.View()),
-		padding+renderTimeAxis(sw, window5hSeconds),
-	)
+	renderChart := func(title string, s sparkline.Model, windowSec int64) string {
+		return lipgloss.JoinVertical(lipgloss.Left,
+			styleBold.Render(title),
+			lipgloss.JoinHorizontal(lipgloss.Top, yAxis, s.View()),
+			padding+renderTimeAxis(sw, windowSec),
+		)
+	}
 
-	chart7d := lipgloss.JoinVertical(lipgloss.Left,
-		styleBold.Render("7-Day Utilization"),
-		lipgloss.JoinHorizontal(lipgloss.Top, yAxis, m.spark7d.View()),
-		padding+renderTimeAxis(sw, window7dSeconds),
-	)
+	chart5h := renderChart("5-Hour Utilization", m.spark5h, window5hSeconds)
+	chart7d := renderChart("7-Day Utilization", m.spark7d, window7dSeconds)
 
 	// Footer.
 	ago := time.Since(m.lastUpdate).Truncate(time.Second)
