@@ -36,15 +36,30 @@ type monitorModel struct {
 	err        error
 }
 
+// flexTimestamp handles the "timestamp" field which is a string in proxy
+// records ("2026-03-31T20:57:14Z") but an object in statusline records
+// ({"epoch":1774990634}).
+type flexTimestamp struct {
+	Epoch int64 `json:"epoch"`
+}
+
+func (t *flexTimestamp) UnmarshalJSON(data []byte) error {
+	// Try object first (statusline format).
+	type plain flexTimestamp
+	if err := json.Unmarshal(data, (*plain)(t)); err == nil {
+		return nil
+	}
+	// String (proxy format) — ignore, proxy has a top-level epoch.
+	return nil
+}
+
 // historyRecord is a union struct for parsing both proxy and statusline JSONL records.
 type historyRecord struct {
-	Source   string      `json:"source"`
-	Epoch    int64       `json:"epoch"`
-	FiveHour *windowData `json:"five_hour"`
-	SevenDay *windowData `json:"seven_day"`
-	Timestamp struct {
-		Epoch int64 `json:"epoch"`
-	} `json:"timestamp"`
+	Source     string        `json:"source"`
+	Epoch     int64         `json:"epoch"`
+	FiveHour  *windowData   `json:"five_hour"`
+	SevenDay  *windowData   `json:"seven_day"`
+	Timestamp flexTimestamp `json:"timestamp"`
 	RateLimits struct {
 		FiveHour struct {
 			UsedPct float64 `json:"used_pct"`
