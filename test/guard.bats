@@ -40,11 +40,15 @@ load helpers
     [ "$status" -eq 0 ]
 }
 
-@test "guard: most recent file wins (newer low-util beats older high-util)" {
-    OLD_EPOCH=$(( NOW - 60 ))
-    write_proxy_json 0.95 0.95 "$OLD_EPOCH"
-    write_statusline_json 10 10 0.2 0.2 "$NOW"
-    run "$QM_BIN" guard --threshold-5h 0.5 --threshold-7d 0.5 --data-dir "$DATA_DIR" --source both --wait-timeout 1s --quiet
+@test "guard: a newer window (later reset) supersedes the previous window" {
+    # Proxy saw the previous 5h window at 95%; it has since reset.
+    cat > "$DATA_DIR/usage-proxy.json" <<JSON
+{"source":"proxy","epoch":$(( NOW - 3600 )),
+ "five_hour":{"utilization":0.95,"reset":$(( NOW - 600 ))},
+ "seven_day":{"utilization":0.1,"reset":${SEVEN_DAY_RESET}}}
+JSON
+    write_statusline_json 10 10 0.2 0.2
+    run "$QM_BIN" guard --threshold-5h 0.5 --data-dir "$DATA_DIR" --source both --wait-timeout 1s --quiet
     [ "$status" -eq 0 ]
 }
 
@@ -96,9 +100,25 @@ load helpers
     [[ "$output" == *"timeout"* ]]
 }
 
-@test "guard: default source uses the newer of proxy and statusline" {
-    write_proxy_json 0.9 0.1 "$(( NOW - 600 ))"   # stale, high
-    write_statusline_json 10 10 0.2 0.2           # fresh, low
+@test "guard: a stale statusline redraw can't hide higher usage in the same window" {
+    # An idle session re-renders old, lower numbers stamped "now"; the proxy
+    # saw higher utilization in the same window earlier. Usage only grows
+    # within a window, so the higher value is the current one.
+    write_proxy_json 0.9 0.1 "$(( NOW - 600 ))"
+    write_statusline_json 10 10 0.2 0.2
     run "$QM_BIN" guard --threshold-5h 0.5 --wait-timeout 1s --quiet
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 1 ]
+}
+
+@test "guard: a snapshot missing a window doesn't hide the other source's data" {
+    write_proxy_json 0.1 0.95 "$(( NOW - 600 ))"
+    # Newer statusline snapshot without a seven_day window (persisted as zeros).
+    cat > "$DATA_DIR/usage-statusline.json" <<JSON
+{"source":"statusline","timestamp":{"epoch":${NOW}},
+ "rate_limits":{"five_hour":{"used_pct":10,"resets_at":${FIVE_HOUR_RESET}},
+                "seven_day":{"used_pct":0,"resets_at":0}}}
+JSON
+    run "$QM_BIN" guard --threshold-7d 0.9 --wait-timeout 1s --quiet
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"7d burn"* ]]
 }
