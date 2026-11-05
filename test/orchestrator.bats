@@ -122,3 +122,46 @@ load helpers
     [ "$status" -eq 1 ]
     [[ "$output" == *"timeout"* ]]
 }
+
+# make_env_child writes a script that prints the proxy-related environment it
+# was launched with, and sets CHILD to its path.
+make_env_child() {
+    CHILD="$BATS_TEST_TMPDIR/env-child.sh"
+    cat > "$CHILD" <<'SH'
+#!/usr/bin/env bash
+echo "URL=[${ANTHROPIC_BASE_URL:-}]"
+echo "AGENTVIEW=[${CLAUDE_CODE_DISABLE_AGENT_VIEW:-}]"
+SH
+    chmod +x "$CHILD"
+}
+
+@test "orchestrator: interactive (pty) session is not proxied" {
+    command -v script >/dev/null || skip "script(1) not available"
+    make_env_child
+    run env -u ANTHROPIC_BASE_URL timeout 20 script -qec "$QM_BIN --claude-command $CHILD --" /dev/null </dev/null
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"URL=[]"* ]]
+}
+
+@test "orchestrator: -p under a pty is proxied" {
+    command -v script >/dev/null || skip "script(1) not available"
+    make_env_child
+    run env -u ANTHROPIC_BASE_URL timeout 20 script -qec "$QM_BIN --claude-command $CHILD -- -p hello" /dev/null </dev/null
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"URL=[http://127.0.0.1:"* ]]
+}
+
+@test "orchestrator: --bg is not proxied even without a TTY" {
+    make_env_child
+    run env -u ANTHROPIC_BASE_URL "$QM_BIN" --claude-command "$CHILD" -- --bg hello </dev/null
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"URL=[]"* ]]
+}
+
+@test "orchestrator: user's own ANTHROPIC_BASE_URL passes through to UI sessions" {
+    command -v script >/dev/null || skip "script(1) not available"
+    make_env_child
+    run env ANTHROPIC_BASE_URL=https://gateway.example timeout 20 script -qec "$QM_BIN --claude-command $CHILD --" /dev/null </dev/null
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"URL=[https://gateway.example]"* ]]
+}

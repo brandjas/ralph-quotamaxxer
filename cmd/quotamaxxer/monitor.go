@@ -402,6 +402,11 @@ func isTerminal() bool {
 	return isatty.IsTerminal(os.Stdin.Fd())
 }
 
+// isStdoutTerminal reports whether stdout is a TTY.
+func isStdoutTerminal() bool {
+	return isatty.IsTerminal(os.Stdout.Fd())
+}
+
 func runMonitor(args []string) {
 	fs := flag.NewFlagSet("monitor", flag.ExitOnError)
 	dataDir := fs.String("data-dir", resolveDataDir(), "data directory")
