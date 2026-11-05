@@ -18,7 +18,7 @@ it go to claude, or use -- to separate explicitly):
   --wait-timeout <dur>     Max guard wait time (e.g. 30m, 1h). 0 = forever (default)
   --run-timeout <dur>      Max claude run time (e.g. 2h); SIGTERM, then SIGKILL after
                            10s. Exits 124. Headless only. 0 = forever (default)
-  --source <src>           Data source: proxy (default), both, statusline
+  --source <src>           Data source: both (default), proxy, statusline
   --data-dir <path>        Data directory (default: $QUOTAMAXXER_DATA_DIR, else
                            ~/.claude/ralph-quotamaxxer/data)
   --claude-command <cmd>   Command to run instead of claude (default: claude)

@@ -88,3 +88,17 @@ load helpers
     [ "$status" -eq 0 ]
     [[ "$output" == *"no usage data"* ]]
 }
+
+@test "guard: default source reads statusline data" {
+    write_statusline_json 90 10 1.8 0.2
+    run "$QM_BIN" guard --threshold-5h 0.5 --wait-timeout 1s --quiet
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"timeout"* ]]
+}
+
+@test "guard: default source uses the newer of proxy and statusline" {
+    write_proxy_json 0.9 0.1 "$(( NOW - 600 ))"   # stale, high
+    write_statusline_json 10 10 0.2 0.2           # fresh, low
+    run "$QM_BIN" guard --threshold-5h 0.5 --wait-timeout 1s --quiet
+    [ "$status" -eq 0 ]
+}

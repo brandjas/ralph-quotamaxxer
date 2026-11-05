@@ -102,3 +102,10 @@ EOF
     [[ "$output" == *"monitor"* ]]
     [[ "$output" == *"Live TUI dashboard"* ]]
 }
+
+@test "monitor: default source shows statusline-only data" {
+    write_statusline_json 40 12 0.8 0.4
+    output=$(echo q | "$QM_BIN" monitor --data-dir "$DATA_DIR" 2>&1)
+    [[ "$output" == *"5h: 40%"* ]]
+    [[ "$output" != *"no usage data found"* ]]
+}
