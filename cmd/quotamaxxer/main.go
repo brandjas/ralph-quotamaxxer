@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -51,9 +52,6 @@ type overageData struct {
 	Status string `json:"status,omitempty"`
 }
 
-// writeCh receives header maps to write asynchronously.
-var writeCh = make(chan map[string]string, 1)
-
 func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -77,10 +75,9 @@ func main() {
 	os.Exit(runOrchestrator(os.Args[1:]))
 }
 
-// newProxyHandler creates the reverse proxy HTTP handler and starts the async writer.
-func newProxyHandler(dataDir string, upstreamURL *url.URL) http.Handler {
-	go asyncWriter(dataDir)
-
+// newProxyHandler creates the reverse proxy HTTP handler, submitting rate
+// limit headers from each response to writer.
+func newProxyHandler(upstreamURL *url.URL, writer *usageWriter) http.Handler {
 	proxy := httputil.NewSingleHostReverseProxy(upstreamURL)
 
 	origDirector := proxy.Director
@@ -101,15 +98,7 @@ func newProxyHandler(dataDir string, upstreamURL *url.URL) http.Handler {
 			}
 		}
 		if len(headers) > 0 {
-			select {
-			case writeCh <- headers:
-			default:
-				select {
-				case <-writeCh:
-				default:
-				}
-				writeCh <- headers
-			}
+			writer.submit(headers)
 		}
 		return nil
 	}
@@ -135,12 +124,13 @@ func startProxyServer(dataDir, upstream, port string) (addr string, shutdown fun
 		return "", nil, fmt.Errorf("cannot create data dir %q: %v", dataDir, err)
 	}
 
-	handler := newProxyHandler(dataDir, upstreamURL)
-
 	ln, err := net.Listen("tcp", "127.0.0.1:"+port)
 	if err != nil {
 		return "", nil, fmt.Errorf("listen: %v", err)
 	}
+
+	writer := startUsageWriter(dataDir)
+	handler := newProxyHandler(upstreamURL, writer)
 
 	srv := &http.Server{Handler: handler}
 	go func() {
@@ -153,7 +143,9 @@ func startProxyServer(dataDir, upstream, port string) (addr string, shutdown fun
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		srv.Shutdown(ctx)
-		close(writeCh)
+		// Flush the pending update: the last response before claude exits
+		// carries the most recent utilization, which the next guard run needs.
+		writer.close(writerFlushTimeout)
 	}
 
 	return ln.Addr().String(), shutdownFn, nil
@@ -220,16 +212,72 @@ func parseWindowHeaders(headers map[string]string, prefix string) *windowData {
 	return w
 }
 
-func asyncWriter(dataDir string) {
+// writerFlushTimeout bounds how long shutdown waits for pending usage writes,
+// so a stuck filesystem can't hang quotamaxxer's exit.
+const writerFlushTimeout = 2 * time.Second
+
+// usageWriter persists rate limit headers off the request path. It holds at
+// most one pending update; a newer update replaces an unwritten older one,
+// since only the latest snapshot matters.
+type usageWriter struct {
+	mu     sync.Mutex
+	closed bool
+	ch     chan map[string]string
+	done   chan struct{}
+}
+
+func startUsageWriter(dataDir string) *usageWriter {
+	w := &usageWriter{
+		ch:   make(chan map[string]string, 1),
+		done: make(chan struct{}),
+	}
+	go w.run(dataDir)
+	return w
+}
+
+func (w *usageWriter) run(dataDir string) {
+	defer close(w.done)
 	snapshotPath := filepath.Join(dataDir, "usage-proxy.json")
 	historyPath := filepath.Join(dataDir, "usage-history.jsonl")
 	maxHistoryBytes := maxHistoryBytesFromEnv()
 
-	for headers := range writeCh {
+	for headers := range w.ch {
 		data := parseHeaders(headers)
 		if err := persistAndAppendHistory(snapshotPath, historyPath, data, maxHistoryBytes); err != nil {
 			log.Printf("proxy persist: %v", err)
 		}
+	}
+}
+
+// submit queues headers for writing, replacing any unwritten pending update.
+// It never blocks on disk I/O and is a no-op after close.
+func (w *usageWriter) submit(headers map[string]string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
+		return
+	}
+	select {
+	case <-w.ch: // drop stale pending update
+	default:
+	}
+	w.ch <- headers // cannot block: buffer is empty and we hold the lock
+}
+
+// close stops accepting updates and waits up to timeout for the pending one
+// to be written.
+func (w *usageWriter) close(timeout time.Duration) {
+	w.mu.Lock()
+	if !w.closed {
+		w.closed = true
+		close(w.ch)
+	}
+	w.mu.Unlock()
+
+	select {
+	case <-w.done:
+	case <-time.After(timeout):
+		log.Printf("quotamaxxer: timed out flushing usage data")
 	}
 }
 
