@@ -3,11 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestAtomicWriteFileConcurrent checks that concurrent writers never expose a
@@ -77,5 +80,60 @@ func TestAtomicWriteFileConcurrent(t *testing.T) {
 	}
 	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0644 {
 		t.Errorf("snapshot mode = %v, err = %v; want 0644", info.Mode().Perm(), err)
+	}
+}
+
+// TestProxyShutdownFlushesPendingWrite checks that the usage snapshot from the
+// last response is on disk once shutdown returns. Previously shutdown closed
+// the write channel without waiting, so exiting right after claude finished
+// could drop the most recent (most important) snapshot.
+func TestProxyShutdownFlushesPendingWrite(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Anthropic-Ratelimit-Unified-5h-Utilization", "0.42")
+		w.Header().Set("Anthropic-Ratelimit-Unified-5h-Reset", "1774540800")
+		w.Header().Set("Anthropic-Ratelimit-Unified-Status", "allowed")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	dataDir := t.TempDir()
+	addr, shutdown, err := startProxyServer(dataDir, upstream.URL, "0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.Post("http://"+addr+"/v1/messages", "application/json", strings.NewReader("{}"))
+	if err != nil {
+		shutdown()
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	shutdown()
+
+	snap, err := readProxyFile(filepath.Join(dataDir, "usage-proxy.json"))
+	if err != nil {
+		t.Fatalf("snapshot not written by the time shutdown returned: %v", err)
+	}
+	if snap.FiveHourUtil != 0.42 || snap.FiveHourReset != 1774540800 {
+		t.Errorf("snapshot = %+v, want 5h utilization 0.42 reset 1774540800", snap)
+	}
+}
+
+func TestUsageWriterKeepsLatestAndIgnoresSubmitAfterClose(t *testing.T) {
+	dataDir := t.TempDir()
+	w := startUsageWriter(dataDir)
+	for i := 1; i <= 100; i++ {
+		w.submit(map[string]string{headerPrefix + "5h-utilization": fmt.Sprintf("0.%02d", i%100)})
+	}
+	w.submit(map[string]string{headerPrefix + "5h-utilization": "0.77"})
+	w.close(5 * time.Second)
+	w.submit(map[string]string{headerPrefix + "5h-utilization": "0.99"}) // must not panic
+	w.close(time.Second)                                                 // idempotent
+
+	snap, err := readProxyFile(filepath.Join(dataDir, "usage-proxy.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.FiveHourUtil != 0.77 {
+		t.Errorf("5h utilization = %v, want 0.77 (the last submitted update)", snap.FiveHourUtil)
 	}
 }
