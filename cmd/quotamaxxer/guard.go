@@ -260,7 +260,7 @@ func runGuard(args []string) {
 	fs := flag.NewFlagSet("guard", flag.ExitOnError)
 	threshold5h := fs.Float64("threshold-5h", 0, "5h burn ratio threshold")
 	threshold7d := fs.Float64("threshold-7d", 0, "7d burn ratio threshold")
-	dataDir := fs.String("data-dir", resolveDefaultDataDir(), "data directory")
+	dataDir := fs.String("data-dir", resolveDataDir(), "data directory")
 	timeout := fs.Duration("wait-timeout", 0, "max wait time (0 = forever)")
 	quiet := fs.Bool("quiet", false, "suppress output")
 	source := fs.String("source", "proxy", "data source: proxy (default), both, statusline")

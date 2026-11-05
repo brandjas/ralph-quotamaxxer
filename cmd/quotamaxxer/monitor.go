@@ -404,7 +404,7 @@ func isTerminal() bool {
 
 func runMonitor(args []string) {
 	fs := flag.NewFlagSet("monitor", flag.ExitOnError)
-	dataDir := fs.String("data-dir", resolveDefaultDataDir(), "data directory")
+	dataDir := fs.String("data-dir", resolveDataDir(), "data directory")
 	source := fs.String("source", "proxy", "data source: proxy (default), both, statusline")
 	fs.Parse(args)
 

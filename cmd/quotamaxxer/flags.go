@@ -36,7 +36,7 @@ func parseOrchestratorArgs(args []string) (orchestratorConfig, error) {
 	fs.DurationVar(&cfg.RunTimeout, "run-timeout", 0, "")
 	fs.StringVar(&cfg.Source, "source", "proxy", "")
 	fs.BoolVar(&cfg.Quiet, "quiet", false, "")
-	fs.StringVar(&cfg.DataDir, "data-dir", resolveDefaultDataDir(), "")
+	fs.StringVar(&cfg.DataDir, "data-dir", resolveDataDir(), "")
 	fs.StringVar(&cfg.ClaudeCmd, "claude-command", "claude", "")
 
 	help := false
