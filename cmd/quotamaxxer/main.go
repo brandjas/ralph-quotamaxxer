@@ -252,12 +252,31 @@ func persistAndAppendHistory(snapshotPath, historyPath string, data any, maxHist
 	return nil
 }
 
+// atomicWriteFile replaces path with data via a uniquely named temp file in
+// the same directory. The unique name matters: multiple quotamaxxer and
+// statusline processes write the same snapshot concurrently, and a shared
+// temp name would let one writer rename another's half-written file into
+// place.
 func atomicWriteFile(path string, data []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmp := f.Name()
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Chmod(0644)
+	}
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		os.Remove(tmp)
+	}
+	return err
 }
 
 func appendHistory(path, lockPath string, line []byte, maxBytes int64) {
