@@ -164,7 +164,7 @@ All via environment variables, no config files:
 | Variable | Default | Purpose |
 |---|---|---|
 | `QUOTAMAXXER_DATA_DIR` | `~/.claude/ralph-quotamaxxer/data` | Data directory |
-| `QUOTAMAXXER_UPSTREAM` | `https://api.anthropic.com` | Upstream URL |
+| `QUOTAMAXXER_UPSTREAM` | `$ANTHROPIC_BASE_URL`, else `https://api.anthropic.com` | Where the headless proxy forwards to (the standalone `proxy` subcommand ignores `ANTHROPIC_BASE_URL`) |
 | `QUOTAMAXXER_PORT` | `0` (OS-assigned) | Proxy listen port (standalone `proxy` subcommand only) |
 | `QUOTAMAXXER_MAX_HISTORY_BYTES` | `0` (disabled) | History rotation threshold (0 = no rotation) |
 
