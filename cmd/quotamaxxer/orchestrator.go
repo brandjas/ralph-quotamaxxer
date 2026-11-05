@@ -47,7 +47,9 @@ func runOrchestrator(args []string) int {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
+	// The statusline (run by claude) records usage for UI sessions; make it
+	// write where this run's guard reads, including with --data-dir.
+	cmd.Env = append(os.Environ(), "QUOTAMAXXER_DATA_DIR="+dataDir)
 
 	// Headless runs record usage through the in-process proxy. UI sessions
 	// (interactive, --bg) rely on the statusline instead; see needsProxy.

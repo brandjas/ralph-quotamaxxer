@@ -131,6 +131,7 @@ make_env_child() {
 #!/usr/bin/env bash
 echo "URL=[${ANTHROPIC_BASE_URL:-}]"
 echo "AGENTVIEW=[${CLAUDE_CODE_DISABLE_AGENT_VIEW:-}]"
+echo "DATADIR=[${QUOTAMAXXER_DATA_DIR:-}]"
 SH
     chmod +x "$CHILD"
 }
@@ -214,4 +215,25 @@ SH
     rm -rf "$cfg"
     [ "$status" -eq 0 ]
     [[ "$output" != *"statusline persistence"* ]]
+}
+
+@test "orchestrator: --data-dir reaches the statusline of interactive sessions" {
+    command -v script >/dev/null || skip "script(1) not available"
+    make_env_child
+    local custom
+    custom="$(mktemp -d)"
+    run timeout 20 script -qec "$QM_BIN --quiet --data-dir $custom --claude-command $CHILD --" /dev/null </dev/null
+    rm -rf "$custom"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"DATADIR=[$custom]"* ]]
+}
+
+@test "orchestrator: --data-dir reaches headless children too" {
+    make_env_child
+    local custom
+    custom="$(mktemp -d)"
+    run "$QM_BIN" --data-dir "$custom" --claude-command "$CHILD" -- -p hello </dev/null
+    rm -rf "$custom"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"DATADIR=[$custom]"* ]]
 }
