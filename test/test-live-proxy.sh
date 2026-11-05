@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-proxy.sh — Smoke test: start proxy, fire a trivial Haiku call, verify usage-proxy.json.
+# test-live-proxy.sh — Smoke test: start proxy, fire a trivial Haiku call, verify usage-proxy.json.
 set -euo pipefail
 
 REPO_DIR="$(dirname "$(readlink -f "$0")")/.."
@@ -16,13 +16,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "=== quotamaxxer-proxy smoke test ==="
+echo "=== quotamaxxer live proxy smoke test ==="
 echo "Data dir: $DATA_DIR"
 
 # Build proxy if no binary specified.
 if [[ -z "$PROXY_BIN" ]]; then
     echo "Building proxy..."
-    PROXY_BIN="$DATA_DIR/quotamaxxer-proxy"
+    PROXY_BIN="$DATA_DIR/quotamaxxer"
     (cd "$REPO_DIR/cmd/quotamaxxer" && go build -o "$PROXY_BIN" .)
 fi
 

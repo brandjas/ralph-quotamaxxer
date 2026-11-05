@@ -1,4 +1,6 @@
-// quotamaxxer-proxy — transparent reverse proxy that extracts rate limit headers.
+// quotamaxxer — rate limit-aware wrapper for Claude Code. Runs claude behind an
+// in-process reverse proxy that records rate limit headers, optionally waiting
+// (guard) until burn rate is below a threshold. See help.go for subcommands.
 package main
 
 import (
