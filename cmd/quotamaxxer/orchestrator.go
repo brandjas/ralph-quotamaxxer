@@ -58,7 +58,13 @@ func runOrchestrator(args []string) int {
 			return 1
 		}
 		defer shutdownProxy()
-		cmd.Env = append(cmd.Env, "ANTHROPIC_BASE_URL=http://"+addr)
+		cmd.Env = append(cmd.Env,
+			"ANTHROPIC_BASE_URL=http://"+addr,
+			// Background agents and the on-demand background daemon would
+			// inherit the proxy URL above and outlive this run, leaving them
+			// talking to a dead port. Keep headless runs from starting them.
+			"CLAUDE_CODE_DISABLE_AGENT_VIEW=1",
+		)
 	}
 
 	// Interactive: claude must stay in our process group, which is the
