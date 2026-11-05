@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"math"
@@ -120,8 +121,15 @@ func statuslineBurnRatio(usedPct float64, resetsAt int64, windowDuration int64) 
 }
 
 // runStatusline reads raw Claude Code JSON from stdin, persists usage data,
-// and prints the formatted statusline to stdout.
-func runStatusline() {
+// and prints the formatted statusline to stdout. With --persist-only it
+// prints nothing, so a custom statusline command can call it purely to
+// record usage.
+func runStatusline(args []string) {
+	fs := flag.NewFlagSet("statusline", flag.ContinueOnError)
+	persistOnly := fs.Bool("persist-only", false, "record usage data without printing a statusline")
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
 	dataDir := resolveDataDir()
 
 	input, err := io.ReadAll(os.Stdin)
@@ -160,7 +168,9 @@ func runStatusline() {
 		persistStatuslineData(dataDir, &status, time.Now(), fh, sd)
 	}
 
-	fmt.Println(line)
+	if !*persistOnly {
+		fmt.Println(line)
+	}
 }
 
 // persistStatuslineData writes the snapshot and history record. Absent

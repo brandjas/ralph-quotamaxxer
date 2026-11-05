@@ -67,7 +67,7 @@ func main() {
 			runStandaloneProxy()
 			return
 		case "statusline":
-			runStatusline()
+			runStatusline(os.Args[2:])
 			return
 		case "help", "--help", "-h":
 			runHelp()

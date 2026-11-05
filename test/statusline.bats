@@ -93,3 +93,26 @@ build_input() {
     [[ "$output" != *"5h:"* ]]
     [ -f "$DATA_DIR/usage-statusline.json" ]
 }
+
+@test "statusline: --persist-only records usage and prints nothing" {
+    local input
+    input=$(build_input)
+    run bash -c 'echo "$1" | QUOTAMAXXER_DATA_DIR="$2" "$3" statusline --persist-only' -- "$input" "$DATA_DIR" "$QM_BIN"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    run jq -e '.rate_limits.five_hour.used_pct == 25' "$DATA_DIR/usage-statusline.json"
+    [ "$status" -eq 0 ]
+}
+
+@test "statusline: --persist-only without rate_limits writes nothing" {
+    local input='{"model":{"display_name":"Opus","id":"opus"}}'
+    run bash -c 'echo "$1" | QUOTAMAXXER_DATA_DIR="$2" "$3" statusline --persist-only' -- "$input" "$DATA_DIR" "$QM_BIN"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    [ ! -f "$DATA_DIR/usage-statusline.json" ]
+}
+
+@test "statusline: unknown flag exits non-zero" {
+    run bash -c 'echo "{}" | "$1" statusline --bogus' -- "$QM_BIN"
+    [ "$status" -ne 0 ]
+}
