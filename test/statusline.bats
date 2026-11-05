@@ -74,3 +74,22 @@ build_input() {
     # No rate limit section.
     [[ "$output" != *"5h:"* ]]
 }
+
+@test "statusline: only five_hour window present" {
+    local input='{"model":{"display_name":"Opus","id":"opus"},"rate_limits":{"five_hour":{"used_percentage":25,"resets_at":'"$FIVE_HOUR_RESET"'}}}'
+    run bash -c 'echo "$1" | QUOTAMAXXER_DATA_DIR="$2" "$3" statusline' -- "$input" "$DATA_DIR" "$QM_BIN"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"5h: 25%"* ]]
+    [[ "$output" != *"7d:"* ]]
+    run jq -e '.rate_limits.five_hour.used_pct == 25 and .rate_limits.seven_day.resets_at == 0' "$DATA_DIR/usage-statusline.json"
+    [ "$status" -eq 0 ]
+}
+
+@test "statusline: only seven_day window present" {
+    local input='{"model":{"display_name":"Opus","id":"opus"},"rate_limits":{"seven_day":{"used_percentage":10,"resets_at":'"$SEVEN_DAY_RESET"'}}}'
+    run bash -c 'echo "$1" | QUOTAMAXXER_DATA_DIR="$2" "$3" statusline' -- "$input" "$DATA_DIR" "$QM_BIN"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"7d: 10%"* ]]
+    [[ "$output" != *"5h:"* ]]
+    [ -f "$DATA_DIR/usage-statusline.json" ]
+}
