@@ -13,6 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-isatty"
 
 	"github.com/NimbleMarkets/ntcharts/sparkline"
 )
@@ -394,12 +395,11 @@ func (m monitorModel) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, header, chart5h, chart7d, footer)
 }
 
+// isTerminal reports whether stdin is a TTY. A ModeCharDevice check is not
+// enough: /dev/null is a character device too, and headless runs commonly
+// have stdin redirected from it.
 func isTerminal() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	return isatty.IsTerminal(os.Stdin.Fd())
 }
 
 func runMonitor(args []string) {

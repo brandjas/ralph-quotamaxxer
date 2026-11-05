@@ -89,6 +89,19 @@ load helpers
     [ "$status" -eq 0 ]
 }
 
+@test "orchestrator: stdin from /dev/null is headless (child gets own process group)" {
+    # /dev/null is a character device but not a TTY. Headless runs must put
+    # the child in its own process group so --run-timeout kills its whole tree.
+    [[ -r /proc/self/stat ]] || skip "needs /proc"
+    run "$QM_BIN" --claude-command bash -- -c '
+        read -r _ _ _ ppid pgrp _ < /proc/$$/stat
+        read -r _ _ _ _ ppgrp _ < /proc/$ppid/stat
+        echo "child=$pgrp parent=$ppgrp"
+        [ "$pgrp" != "$ppgrp" ]' </dev/null
+    echo "$output"
+    [ "$status" -eq 0 ]
+}
+
 @test "orchestrator: child inherits stdin" {
     # Pipe input to child via stdin.
     run bash -c 'echo "from stdin" | "$1" --claude-command cat --' -- "$QM_BIN"
