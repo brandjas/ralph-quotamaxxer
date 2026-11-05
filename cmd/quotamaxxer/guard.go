@@ -117,11 +117,44 @@ func readLatestUsage(dataDir, source string) (usageSnapshot, error) {
 	if !haveStatusline {
 		return snapProxy, nil
 	}
-	// Both available — pick most recent.
-	if snapStatusline.Epoch > snapProxy.Epoch {
-		return snapStatusline, nil
+	return mergeSnapshots(snapProxy, snapStatusline), nil
+}
+
+// sameWindowTolerance is how far apart two reset times may be and still refer
+// to the same rate limit window. Sources report identical resets in practice;
+// consecutive windows are hours apart.
+const sameWindowTolerance = 600 // seconds
+
+// mergeSnapshots combines two snapshots window by window, rather than picking
+// the snapshot with the newest timestamp. A snapshot's timestamp is when it
+// was written, not when its data was fetched: a statusline redraw in an idle
+// session re-saves old numbers stamped "now", and a snapshot may lack a window
+// entirely (written as reset 0). Neither may hide fresher data from the other
+// source.
+func mergeSnapshots(a, b usageSnapshot) usageSnapshot {
+	m := usageSnapshot{Epoch: max(a.Epoch, b.Epoch)}
+	m.FiveHourUtil, m.FiveHourReset = mergeWindow(a.FiveHourUtil, a.FiveHourReset, b.FiveHourUtil, b.FiveHourReset)
+	m.SevenDayUtil, m.SevenDayReset = mergeWindow(a.SevenDayUtil, a.SevenDayReset, b.SevenDayUtil, b.SevenDayReset)
+	return m
+}
+
+// mergeWindow picks the most up-to-date view of one rate limit window:
+//   - a side without a reset time carries no data for the window;
+//   - a later reset means a newer window, which supersedes the old one;
+//   - within the same window utilization only grows until the reset, so the
+//     higher value is the more recent one, whatever the snapshot timestamps.
+func mergeWindow(utilA float64, resetA int64, utilB float64, resetB int64) (float64, int64) {
+	switch {
+	case resetA <= 0:
+		return utilB, resetB
+	case resetB <= 0:
+		return utilA, resetA
+	case resetA-resetB > sameWindowTolerance:
+		return utilA, resetA
+	case resetB-resetA > sameWindowTolerance:
+		return utilB, resetB
 	}
-	return snapProxy, nil
+	return max(utilA, utilB), max(resetA, resetB)
 }
 
 func computeBurnRatio(util float64, resetEpoch int64, windowDuration int64) float64 {
