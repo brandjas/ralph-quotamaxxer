@@ -65,6 +65,11 @@ func runOrchestrator(args []string) int {
 			// talking to a dead port. Keep headless runs from starting them.
 			"CLAUDE_CODE_DISABLE_AGENT_VIEW=1",
 		)
+	} else if !cfg.Quiet {
+		if cwd, err := os.Getwd(); err == nil && !statuslineConfigured(cwd) {
+			fmt.Fprintln(os.Stderr, "quotamaxxer: statusline persistence is not configured, so this session's usage won't be recorded.\n"+
+				"  See https://github.com/brandjas/ralph-quotamaxxer#statusline (use --quiet to hide this)")
+		}
 	}
 
 	// Interactive: claude must stay in our process group, which is the

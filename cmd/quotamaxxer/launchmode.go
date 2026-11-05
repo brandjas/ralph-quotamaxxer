@@ -1,5 +1,12 @@
 package main
 
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
 // needsProxy reports whether a claude launch should run behind the
 // in-process proxy.
 //
@@ -28,4 +35,46 @@ func needsProxy(claudeArgs []string, stdinTTY, stdoutTTY bool) bool {
 		}
 	}
 	return printMode || !stdinTTY || !stdoutTTY
+}
+
+// statuslineConfigured reports whether a Claude Code settings file that
+// applies to a session in cwd has a statusline that runs
+// `quotamaxxer statusline` (directly or with --persist-only). It checks the
+// user settings ($CLAUDE_CONFIG_DIR or ~/.claude) and the project's
+// .claude/settings.json and .claude/settings.local.json.
+//
+// This is a heuristic used only to decide whether to print a setup hint:
+// missing or unparseable files count as "not configured".
+func statuslineConfigured(cwd string) bool {
+	configDir := os.Getenv("CLAUDE_CONFIG_DIR")
+	if configDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = os.Getenv("HOME")
+		}
+		configDir = filepath.Join(home, ".claude")
+	}
+	for _, path := range []string{
+		filepath.Join(configDir, "settings.json"),
+		filepath.Join(cwd, ".claude", "settings.json"),
+		filepath.Join(cwd, ".claude", "settings.local.json"),
+	} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var s struct {
+			StatusLine struct {
+				Command string `json:"command"`
+			} `json:"statusLine"`
+		}
+		if json.Unmarshal(data, &s) != nil {
+			continue
+		}
+		if strings.Contains(s.StatusLine.Command, "quotamaxxer") &&
+			strings.Contains(s.StatusLine.Command, "statusline") {
+			return true
+		}
+	}
+	return false
 }
