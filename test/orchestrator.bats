@@ -165,3 +165,18 @@ SH
     [ "$status" -eq 0 ]
     [[ "$output" == *"URL=[https://gateway.example]"* ]]
 }
+
+@test "orchestrator: headless runs disable agent view" {
+    make_env_child
+    run env -u CLAUDE_CODE_DISABLE_AGENT_VIEW "$QM_BIN" --claude-command "$CHILD" -- -p hello </dev/null
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"AGENTVIEW=[1]"* ]]
+}
+
+@test "orchestrator: interactive (pty) sessions keep agent view" {
+    command -v script >/dev/null || skip "script(1) not available"
+    make_env_child
+    run env -u CLAUDE_CODE_DISABLE_AGENT_VIEW timeout 20 script -qec "$QM_BIN --claude-command $CHILD --" /dev/null </dev/null
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"AGENTVIEW=[]"* ]]
+}
