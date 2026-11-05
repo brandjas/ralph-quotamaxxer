@@ -108,3 +108,10 @@ load helpers
     [ "$status" -eq 0 ]
     [[ "$output" == "from stdin" ]]
 }
+
+@test "orchestrator: honors QUOTAMAXXER_DATA_DIR without --data-dir" {
+    write_proxy_json 0.95 0.1
+    run "$QM_BIN" --claude-command true --threshold-5h 0.5 --wait-timeout 1s --quiet --
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"timeout"* ]]
+}

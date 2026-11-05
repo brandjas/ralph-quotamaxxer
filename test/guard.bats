@@ -71,3 +71,20 @@ load helpers
     run "$QM_BIN" guard --threshold-5h 0.8 --wait-timeout nope --data-dir "$DATA_DIR"
     [ "$status" -ne 0 ]
 }
+
+@test "guard: honors QUOTAMAXXER_DATA_DIR without --data-dir" {
+    write_proxy_json 0.9 0.1   # into $DATA_DIR, which helpers exports as QUOTAMAXXER_DATA_DIR
+    run "$QM_BIN" guard --threshold-5h 0.5 --wait-timeout 1s --quiet
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"timeout"* ]]
+}
+
+@test "guard: --data-dir overrides QUOTAMAXXER_DATA_DIR" {
+    write_proxy_json 0.9 0.1
+    local empty
+    empty="$(mktemp -d)"
+    run "$QM_BIN" guard --threshold-5h 0.5 --wait-timeout 1s --data-dir "$empty"
+    rm -rf "$empty"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"no usage data"* ]]
+}

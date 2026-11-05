@@ -156,7 +156,7 @@ func startProxyServer(dataDir, upstream, port string) (addr string, shutdown fun
 // runStandaloneProxy runs the proxy as a standalone server (quotamaxxer proxy).
 func runStandaloneProxy() {
 	port := envOr("QUOTAMAXXER_PORT", defaultPort)
-	dataDir := envOr("QUOTAMAXXER_DATA_DIR", resolveDefaultDataDir())
+	dataDir := resolveDataDir()
 	upstream := envOr("QUOTAMAXXER_UPSTREAM", defaultUpstream)
 
 	addr, shutdown, err := startProxyServer(dataDir, upstream, port)
@@ -388,6 +388,13 @@ func rotateHistory(path string) {
 	half := len(lines) / 2
 	kept := strings.Join(lines[half:], "\n") + "\n"
 	os.WriteFile(path, []byte(kept), 0644)
+}
+
+// resolveDataDir returns $QUOTAMAXXER_DATA_DIR if set, else the default data
+// directory. Every subcommand must use this (as the --data-dir default where
+// that flag exists) so all writers and readers agree on one location.
+func resolveDataDir() string {
+	return envOr("QUOTAMAXXER_DATA_DIR", resolveDefaultDataDir())
 }
 
 func resolveDefaultDataDir() string {

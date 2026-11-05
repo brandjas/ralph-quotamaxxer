@@ -122,7 +122,7 @@ func statuslineBurnRatio(usedPct float64, resetsAt int64, windowDuration int64) 
 // runStatusline reads raw Claude Code JSON from stdin, persists usage data,
 // and prints the formatted statusline to stdout.
 func runStatusline() {
-	dataDir := envOr("QUOTAMAXXER_DATA_DIR", resolveDefaultDataDir())
+	dataDir := resolveDataDir()
 
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {

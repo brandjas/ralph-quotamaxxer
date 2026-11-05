@@ -112,7 +112,7 @@ echo "🚀 quota headroom available, let's go"
 | `--wait-timeout <dur>` | Max guard wait time (e.g. `30m`, `1h`). Exit 1 if exceeded. Default: forever |
 | `--run-timeout <dur>` | Max claude run time (e.g. `2h`). Sends SIGTERM, then SIGKILL after 10s. Exit 124 if exceeded. Headless only. Default: forever |
 | `--source <src>` | Data source: `proxy` (default), `both`, `statusline` |
-| `--data-dir <path>` | Data directory. Default: `~/.claude/ralph-quotamaxxer/data` |
+| `--data-dir <path>` | Data directory. Default: `$QUOTAMAXXER_DATA_DIR`, else `~/.claude/ralph-quotamaxxer/data` |
 | `--claude-command <cmd>` | Command to run instead of `claude` (not available on `guard`) |
 | `--quiet` | Suppress waiting output |
 | `--help` | Show help |
