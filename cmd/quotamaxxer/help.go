@@ -16,7 +16,8 @@ it go to claude, or use -- to separate explicitly):
   --threshold-5h <ratio>   Wait until 5h burn ratio drops below this (e.g. 0.8)
   --threshold-7d <ratio>   Wait until 7d burn ratio drops below this (e.g. 0.9)
   --wait-timeout <dur>     Max guard wait time (e.g. 30m, 1h). 0 = forever (default)
-  --run-timeout <dur>      Max claude run time (e.g. 2h). Headless only. 0 = forever (default)
+  --run-timeout <dur>      Max claude run time (e.g. 2h); SIGTERM, then SIGKILL after
+                           10s. Exits 124. Headless only. 0 = forever (default)
   --source <src>           Data source: proxy (default), both, statusline
   --data-dir <path>        Data directory (default: ~/.claude/ralph-quotamaxxer/data)
   --claude-command <cmd>   Command to run instead of claude (default: claude)

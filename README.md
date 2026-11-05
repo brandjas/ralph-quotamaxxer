@@ -7,7 +7,7 @@
 Rate limit-aware pacing for Claude Code. Lets autonomous loops burn right up
 to your quota ceiling and coast until it resets.
 
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS-lightgrey)]()
 
@@ -37,7 +37,7 @@ curl -fsSL https://raw.githubusercontent.com/brandjas/ralph-quotamaxxer/main/ins
 ```
 
 <details>
-<summary><b>Install from source</b> (requires Go 1.22+)</summary>
+<summary><b>Install from source</b> (requires Go 1.24+)</summary>
 
 ```bash
 git clone https://github.com/brandjas/ralph-quotamaxxer.git
@@ -110,8 +110,10 @@ echo "🚀 quota headroom available, let's go"
 | `--threshold-5h <ratio>` | Wait until 5h burn ratio drops below this |
 | `--threshold-7d <ratio>` | Wait until 7d burn ratio drops below this |
 | `--wait-timeout <dur>` | Max guard wait time (e.g. `30m`, `1h`). Exit 1 if exceeded. Default: forever |
-| `--run-timeout <dur>` | Max claude run time (e.g. `2h`). Exit 124 if exceeded. Headless only. Default: forever |
+| `--run-timeout <dur>` | Max claude run time (e.g. `2h`). Sends SIGTERM, then SIGKILL after 10s. Exit 124 if exceeded. Headless only. Default: forever |
 | `--source <src>` | Data source: `proxy` (default), `both`, `statusline` |
+| `--data-dir <path>` | Data directory. Default: `~/.claude/ralph-quotamaxxer/data` |
+| `--claude-command <cmd>` | Command to run instead of `claude` (not available on `guard`) |
 | `--quiet` | Suppress waiting output |
 | `--help` | Show help |
 
@@ -180,9 +182,12 @@ Source-specific fields:
 
 ## Testing
 
+Requires Go, [bats](https://github.com/bats-core/bats-core), and `jq`. Run from the repo root:
+
 ```bash
-./test/test-proxy.sh    # real Haiku call through the proxy
-./test/test-guard.sh    # synthetic guard scenarios
+(cd cmd/quotamaxxer && go test ./...)   # Go unit tests
+bats test/                              # end-to-end tests of the built binary (no network)
+./test/test-live-proxy.sh               # real Haiku call through the proxy, using your Claude credentials
 ```
 
 <details>
