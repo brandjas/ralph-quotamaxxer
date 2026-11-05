@@ -42,20 +42,24 @@ func runOrchestrator(args []string) int {
 		}
 	}
 
-	// Start proxy in-process.
-	addr, shutdownProxy, err := startProxyServer(dataDir, upstream, "0")
-	if err != nil {
-		log.Printf("quotamaxxer: failed to start proxy: %v", err)
-		return 1
-	}
-	defer shutdownProxy()
-
 	// Launch claude (or custom command via --claude-command).
 	cmd := exec.Command(cfg.ClaudeCmd, cfg.ClaudeArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(), "ANTHROPIC_BASE_URL=http://"+addr)
+	cmd.Env = os.Environ()
+
+	// Headless runs record usage through the in-process proxy. UI sessions
+	// (interactive, --bg) rely on the statusline instead; see needsProxy.
+	if needsProxy(cfg.ClaudeArgs, isTerminal(), isStdoutTerminal()) {
+		addr, shutdownProxy, err := startProxyServer(dataDir, upstream, "0")
+		if err != nil {
+			log.Printf("quotamaxxer: failed to start proxy: %v", err)
+			return 1
+		}
+		defer shutdownProxy()
+		cmd.Env = append(cmd.Env, "ANTHROPIC_BASE_URL=http://"+addr)
+	}
 
 	// Interactive: claude must stay in our process group, which is the
 	// terminal's foreground group. In its own group it would be stopped by
