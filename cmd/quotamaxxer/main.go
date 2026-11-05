@@ -414,6 +414,15 @@ func maxHistoryBytesFromEnv() int64 {
 	return 0
 }
 
+// orchestratorUpstream is where a headless run's proxy forwards to:
+// QUOTAMAXXER_UPSTREAM if set, else the ANTHROPIC_BASE_URL the user launched
+// quotamaxxer with (e.g. a corporate gateway, which UI sessions also use since
+// they inherit it unchanged), else the Anthropic API. The proxy then replaces
+// ANTHROPIC_BASE_URL for the child with its own address.
+func orchestratorUpstream() string {
+	return envOr("QUOTAMAXXER_UPSTREAM", envOr("ANTHROPIC_BASE_URL", defaultUpstream))
+}
+
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

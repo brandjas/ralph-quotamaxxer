@@ -24,7 +24,7 @@ func runOrchestrator(args []string) int {
 	}
 
 	dataDir := cfg.DataDir
-	upstream := envOr("QUOTAMAXXER_UPSTREAM", defaultUpstream)
+	upstream := orchestratorUpstream()
 
 	// Run guard if thresholds are set.
 	if cfg.Threshold5h > 0 || cfg.Threshold7d > 0 {
