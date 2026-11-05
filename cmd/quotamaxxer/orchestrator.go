@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+// runTimeoutKillGrace is how long claude gets to exit after --run-timeout
+// sends SIGTERM before it is sent SIGKILL. A var so tests can shorten it.
+var runTimeoutKillGrace = 10 * time.Second
+
 // runOrchestrator is the default mode: guard → proxy → claude.
 func runOrchestrator(args []string) int {
 	cfg, err := parseOrchestratorArgs(args)
@@ -79,13 +83,22 @@ func runOrchestrator(args []string) int {
 		}
 	}
 
-	// Run timeout.
+	// Run timeout: SIGTERM, then SIGKILL if claude (or anything in its
+	// process group) is still running after the grace period.
 	var timedOut atomic.Bool
+	exited := make(chan struct{})
 	if cfg.RunTimeout > 0 {
+		grace := runTimeoutKillGrace // read once; the timer may outlive this call
 		timer := time.AfterFunc(cfg.RunTimeout, func() {
 			timedOut.Store(true)
 			fmt.Fprintf(os.Stderr, "quotamaxxer: --run-timeout (%s) exceeded, killing claude\n", cfg.RunTimeout)
 			signalChild(syscall.SIGTERM)
+			select {
+			case <-exited:
+			case <-time.After(grace):
+				fmt.Fprintf(os.Stderr, "quotamaxxer: claude still running %s after SIGTERM, sending SIGKILL\n", grace)
+				signalChild(syscall.SIGKILL)
+			}
 		})
 		defer timer.Stop()
 	}
@@ -106,6 +119,7 @@ func runOrchestrator(args []string) int {
 
 	// Wait for claude to exit.
 	err = cmd.Wait()
+	close(exited)
 	signal.Stop(sigCh)
 
 	if timedOut.Load() {
