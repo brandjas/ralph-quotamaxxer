@@ -86,5 +86,8 @@ echo ""
 echo "Or alias it:"
 echo "  alias claude='$DEST_DIR/bin/quotamaxxer --'"
 echo ""
-echo "To enable the statusline, add this to ~/.claude/settings.json:"
+echo "Interactive sessions and background agents are tracked via the statusline."
+echo "Add this to ~/.claude/settings.json:"
 echo '  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline" }'
+echo "Or keep your own statusline and pipe its input to:"
+echo '  ~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline --persist-only'
