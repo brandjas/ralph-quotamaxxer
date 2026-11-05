@@ -17,6 +17,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	// Must be imported so its init runs before bubbletea's; see package doc.
+	_ "github.com/brandjas/ralph-quotamaxxer/cmd/quotamaxxer/internal/notermquery"
 )
 
 const (

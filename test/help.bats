@@ -46,3 +46,17 @@ load helpers
     run "$QM_BIN" help
     [[ "$output" == *"statusline"* ]]
 }
+
+@test "help: startup does not query the terminal" {
+    # bubbletea v1's init queries the terminal background color and blocks up
+    # to 5s waiting for a reply (the script(1) pty never answers). The
+    # notermquery package must prevent that for every subcommand.
+    command -v script >/dev/null || skip "script(1) not available"
+    local start end
+    start=$(date +%s)
+    run timeout 20 script -qec "$QM_BIN --help" /dev/null </dev/null
+    end=$(date +%s)
+    [ "$status" -eq 0 ]
+    (( end - start < 3 ))
+    [[ "$output" != *$'\e]11;?'* ]]
+}
