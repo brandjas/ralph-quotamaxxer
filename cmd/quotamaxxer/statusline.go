@@ -24,15 +24,36 @@ type claudeCodeStatus struct {
 		TotalCostUSD float64 `json:"total_cost_usd"`
 	} `json:"cost"`
 	RateLimits *struct {
-		FiveHour *struct {
-			UsedPercentage float64 `json:"used_percentage"`
-			ResetsAt       int64   `json:"resets_at"`
-		} `json:"five_hour"`
-		SevenDay *struct {
-			UsedPercentage float64 `json:"used_percentage"`
-			ResetsAt       int64   `json:"resets_at"`
-		} `json:"seven_day"`
+		FiveHour *claudeCodeWindow `json:"five_hour"`
+		SevenDay *claudeCodeWindow `json:"seven_day"`
 	} `json:"rate_limits"`
+}
+
+// claudeCodeWindow is one rate limit window in Claude Code's statusline JSON.
+// Either window may be absent.
+type claudeCodeWindow struct {
+	UsedPercentage float64 `json:"used_percentage"`
+	ResetsAt       int64   `json:"resets_at"`
+}
+
+// statuslineWindow is a rate limit window prepared for display and persistence.
+type statuslineWindow struct {
+	Pct      float64 // rounded used percentage
+	ResetsAt int64
+	Burn     float64
+}
+
+// newStatuslineWindow returns nil if the window is absent or has no reset time.
+func newStatuslineWindow(w *claudeCodeWindow, windowDuration int64) *statuslineWindow {
+	if w == nil || w.ResetsAt <= 0 {
+		return nil
+	}
+	pct := math.Round(w.UsedPercentage)
+	return &statuslineWindow{
+		Pct:      pct,
+		ResetsAt: w.ResetsAt,
+		Burn:     statuslineBurnRatio(pct, w.ResetsAt, windowDuration),
+	}
 }
 
 // statuslinePersistData is the JSON schema written to usage-statusline.json.
@@ -93,7 +114,7 @@ func burnIndicator(ratio float64) string {
 	return "●"
 }
 
-func statuslineBurnRatio(usedPct float64, resetsAt int64, now int64, windowDuration int64) float64 {
+func statuslineBurnRatio(usedPct float64, resetsAt int64, windowDuration int64) float64 {
 	ratio := computeBurnRatio(usedPct/100, resetsAt, windowDuration)
 	return math.Round(ratio*100) / 100
 }
@@ -121,29 +142,30 @@ func runStatusline() {
 	line := fmt.Sprintf("%s%s%s | Ctx %d%% | $%s",
 		ansiDim, status.Model.DisplayName, ansiReset, contextPct, cost)
 
-	hasRateLimits := status.RateLimits != nil &&
-		status.RateLimits.FiveHour != nil &&
-		status.RateLimits.FiveHour.ResetsAt > 0
-
-	if hasRateLimits {
-		now := time.Now()
-
-		fhPct := math.Round(status.RateLimits.FiveHour.UsedPercentage)
-		sdPct := math.Round(status.RateLimits.SevenDay.UsedPercentage)
-		burn5h := statuslineBurnRatio(fhPct, status.RateLimits.FiveHour.ResetsAt, now.Unix(), window5hSeconds)
-		burn7d := statuslineBurnRatio(sdPct, status.RateLimits.SevenDay.ResetsAt, now.Unix(), window7dSeconds)
-
-		line += fmt.Sprintf(" | %s5h: %.0f%%%s%s", colorForPct(fhPct), fhPct, burnIndicator(burn5h), ansiReset)
-		line += fmt.Sprintf(" | %s7d: %.0f%%%s%s", colorForPct(sdPct), sdPct, burnIndicator(burn7d), ansiReset)
-
-		// Persist usage data.
-		persistStatuslineData(dataDir, &status, now, fhPct, sdPct, burn5h, burn7d)
+	var fh, sd *statuslineWindow
+	if status.RateLimits != nil {
+		fh = newStatuslineWindow(status.RateLimits.FiveHour, window5hSeconds)
+		sd = newStatuslineWindow(status.RateLimits.SevenDay, window7dSeconds)
+	}
+	for _, w := range []struct {
+		label string
+		win   *statuslineWindow
+	}{{"5h", fh}, {"7d", sd}} {
+		if w.win != nil {
+			line += fmt.Sprintf(" | %s%s: %.0f%%%s%s",
+				colorForPct(w.win.Pct), w.label, w.win.Pct, burnIndicator(w.win.Burn), ansiReset)
+		}
+	}
+	if fh != nil || sd != nil {
+		persistStatuslineData(dataDir, &status, time.Now(), fh, sd)
 	}
 
 	fmt.Println(line)
 }
 
-func persistStatuslineData(dataDir string, status *claudeCodeStatus, now time.Time, fhPct, sdPct, burn5h, burn7d float64) {
+// persistStatuslineData writes the snapshot and history record. Absent
+// windows (nil) are written as zeros, which the guard skips (reset <= 0).
+func persistStatuslineData(dataDir string, status *claudeCodeStatus, now time.Time, fh, sd *statuslineWindow) {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return
 	}
@@ -161,15 +183,15 @@ func persistStatuslineData(dataDir string, status *claudeCodeStatus, now time.Ti
 	data.ContextPct = math.Round(status.ContextWindow.UsedPercentage)
 	data.CostUSD = status.Cost.TotalCostUSD
 
-	if fh := status.RateLimits.FiveHour; fh != nil {
-		data.RateLimits.FiveHour.UsedPct = fhPct
+	if fh != nil {
+		data.RateLimits.FiveHour.UsedPct = fh.Pct
 		data.RateLimits.FiveHour.ResetsAt = fh.ResetsAt
-		data.RateLimits.FiveHour.BurnRatio = burn5h
+		data.RateLimits.FiveHour.BurnRatio = fh.Burn
 	}
-	if sd := status.RateLimits.SevenDay; sd != nil {
-		data.RateLimits.SevenDay.UsedPct = sdPct
+	if sd != nil {
+		data.RateLimits.SevenDay.UsedPct = sd.Pct
 		data.RateLimits.SevenDay.ResetsAt = sd.ResetsAt
-		data.RateLimits.SevenDay.BurnRatio = burn7d
+		data.RateLimits.SevenDay.BurnRatio = sd.Burn
 	}
 
 	snapshotPath := filepath.Join(dataDir, "usage-statusline.json")
