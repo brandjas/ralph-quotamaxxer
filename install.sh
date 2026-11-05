@@ -11,7 +11,10 @@ mkdir -p "$DEST_DIR/bin" "$DEST_DIR/data"
 (cd "$REPO_DIR/cmd/quotamaxxer" && go build -o "$DEST_DIR/bin/quotamaxxer" .)
 echo "Installed to $DEST_DIR/bin/quotamaxxer"
 echo ""
-echo "To enable the statusline, add this to ~/.claude/settings.json:"
+echo "Interactive sessions and background agents are tracked via the statusline."
+echo "Add this to ~/.claude/settings.json:"
 echo '  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline" }'
+echo "Or keep your own statusline and pipe its input to:"
+echo '  ~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline --persist-only'
 echo ""
 echo "Done."

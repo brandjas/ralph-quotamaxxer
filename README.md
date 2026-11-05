@@ -62,7 +62,29 @@ Everything installs into `~/.claude/ralph-quotamaxxer/`, so it works inside devc
 alias claude='~/.claude/ralph-quotamaxxer/bin/quotamaxxer --'
 ```
 
-`quotamaxxer` is a single Go binary. It starts an in-process reverse proxy, runs `claude` as a child, and propagates exit codes correctly.
+`quotamaxxer` is a single Go binary. It runs `claude` as a child (after the guard, if you set thresholds) and propagates exit codes correctly. Then [set up the statusline](#statusline) so interactive sessions and background agents are tracked too.
+
+## Statusline
+
+Interactive sessions and background agents record usage through Claude Code's statusline, which receives the same rate limit data on every update. Pick one:
+
+**Use quotamaxxer's statusline** (shows model, context, cost, and quota with burn indicators):
+
+```json
+{
+  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline" }
+}
+```
+
+**Keep your own statusline** and add one line that records usage without printing anything:
+
+```bash
+input=$(cat)
+printf '%s' "$input" | ~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline --persist-only >/dev/null 2>&1
+# ... your existing statusline, reading from "$input" ...
+```
+
+Put either in `~/.claude/settings.json`. Because the statusline runs in every Claude Code session, this also tracks sessions you start with plain `claude`. When quotamaxxer launches an interactive session and finds no statusline that runs `quotamaxxer statusline`, it prints a one-line reminder (hide it with `--quiet`).
 
 ## Monitor
 
@@ -79,9 +101,9 @@ Shows 5-hour and 7-day utilization sparklines with current burn rates, time unti
 ## Usage
 
 > [!IMPORTANT]
-> Usage data is only collected when Claude runs through `quotamaxxer`. If you run `claude` directly, those API calls won't be tracked and the guard will underestimate your actual usage. For accurate pacing, run **all** sessions through `quotamaxxer` — the simplest way is to [alias `claude`](#install).
+> The guard can only pace against usage it has seen. Interactive sessions and background agents are recorded by the [statusline](#statusline); headless `-p` runs are recorded by quotamaxxer's proxy, so run those **through `quotamaxxer`** (the simplest way is to [alias `claude`](#install)). A headless run started with plain `claude -p` isn't tracked, and the guard will underestimate your usage.
 
-Without threshold flags, it just proxies and records rate limits:
+Without threshold flags, it just runs claude and records rate limits:
 
 ```bash
 quotamaxxer              # interactive
@@ -129,16 +151,11 @@ After each API call, rate limit data is written to `~/.claude/ralph-quotamaxxer/
 
 | File | Contents |
 |---|---|
-| `usage-proxy.json` | Latest rate limit snapshot from the proxy |
-| `usage-history.jsonl` | Append-only history (rotation disabled by default) |
+| `usage-proxy.json` | Latest rate limit snapshot from the proxy (headless runs) |
+| `usage-statusline.json` | Latest rate limit snapshot from the statusline (interactive sessions, background agents) |
+| `usage-history.jsonl` | Append-only history from both (rotation disabled by default) |
 
-The binary also includes a statusline subcommand that collects usage data from interactive sessions and displays quota percentages, model, context usage, and cost. To enable it, add this to `~/.claude/settings.json`:
-
-```json
-{
-  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline" }
-}
-```
+The guard and monitor use whichever snapshot is newer (`--source both`, the default).
 
 ## Configuration
 
@@ -153,9 +170,14 @@ All via environment variables, no config files:
 
 ## How it works
 
-`quotamaxxer` is a single Go binary that starts an in-process reverse proxy on an ephemeral port, points Claude Code at it via `ANTHROPIC_BASE_URL`, then runs `claude` as a child process. The proxy sits between Claude Code and `api.anthropic.com`, extracting `anthropic-ratelimit-unified-*` headers from every response and writing them to disk. No body inspection, no header mutation, SSE streaming passes through, and upstream errors (including 429s) are forwarded as-is. Go standard library only.
+`quotamaxxer` runs the guard (if you set thresholds), then runs `claude` as a child process. Usage is recorded in one of two ways, depending on whether the session has a UI:
 
-The proxy is an in-process goroutine — no daemons, no PID files, no port conflicts, no orphaned processes.
+- **Interactive sessions and background agents (`--bg`, `/background`)** record usage through the [statusline](#statusline). Claude Code passes the current `rate_limits` to the statusline command on every update, and `quotamaxxer statusline` writes them to disk. quotamaxxer doesn't touch `ANTHROPIC_BASE_URL` for these sessions, so background agents and Claude Code's background service never depend on a quotamaxxer process staying alive.
+- **Headless runs (`-p`, or no terminal)** have no statusline, so quotamaxxer starts an in-process reverse proxy on an ephemeral port and points Claude Code at it via `ANTHROPIC_BASE_URL`. The proxy sits between Claude Code and `api.anthropic.com`, extracting `anthropic-ratelimit-unified-*` headers from every response and writing them to disk. No body inspection, no header mutation, SSE streaming passes through, and upstream errors (including 429s) are forwarded as-is. The proxy uses only the Go standard library and lives exactly as long as the run.
+
+There are no daemons, PID files, or port conflicts, and nothing runs when Claude isn't running. All state lives in `~/.claude/ralph-quotamaxxer/`, so it works across devcontainers that bind-mount `~/.claude`.
+
+**Limitation:** headless runs launched through quotamaxxer can't start background agents. quotamaxxer sets `CLAUDE_CODE_DISABLE_AGENT_VIEW=1` for them, because an agent would inherit the run's proxy address and lose its connection when the run ends.
 
 <details>
 <summary><b>History schema</b></summary>

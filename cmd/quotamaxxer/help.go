@@ -5,11 +5,12 @@ import "fmt"
 const helpText = `quotamaxxer — rate limit visibility for Claude Code
 
 Usage:
-  quotamaxxer [flags] [-- claude-args...]    Start proxy, optionally guard, then run claude
+  quotamaxxer [flags] [-- claude-args...]    Optionally guard, then run claude
   quotamaxxer guard [flags]                  Wait for rate limits, then exit
   quotamaxxer monitor [flags]                Live TUI dashboard for rate limits
   quotamaxxer proxy                          Run standalone proxy server
-  quotamaxxer statusline                     Claude Code statusline (reads JSON from stdin)
+  quotamaxxer statusline [--persist-only]    Claude Code statusline (reads JSON from stdin);
+                                             --persist-only records usage without printing
 
 Flags (must come first; the first unrecognized argument and everything after
 it go to claude, or use -- to separate explicitly):
@@ -22,7 +23,7 @@ it go to claude, or use -- to separate explicitly):
   --data-dir <path>        Data directory (default: $QUOTAMAXXER_DATA_DIR, else
                            ~/.claude/ralph-quotamaxxer/data)
   --claude-command <cmd>   Command to run instead of claude (default: claude)
-  --quiet                  Suppress waiting output
+  --quiet                  Suppress guard output and the statusline setup hint
   --help                   Show this help
 
 Guard flags:
@@ -32,6 +33,12 @@ Guard flags:
 Burn ratio = used_pct / elapsed_pct, where elapsed_pct is the fraction of the
 rate limit window already passed. A ratio of 1.0 means on pace to exhaust quota
 at reset; >1.0 means burning too fast.
+
+Usage tracking: headless runs (-p, or no terminal) go through an in-process
+proxy that records rate limit headers. Interactive sessions and background
+agents are recorded by the statusline instead; configure it to run
+'quotamaxxer statusline' (or add 'quotamaxxer statusline --persist-only' to
+your own statusline). See the README's Statusline section.
 
 The guard reads usage-proxy.json (written by the proxy) and/or
 usage-statusline.json (written by the statusline). Use --source to restrict
