@@ -115,3 +115,10 @@ load helpers
     [ "$status" -eq 1 ]
     [[ "$output" == *"timeout"* ]]
 }
+
+@test "orchestrator: guard reads statusline data by default" {
+    write_statusline_json 95 10 1.9 0.2
+    run "$QM_BIN" --claude-command true --threshold-5h 0.5 --wait-timeout 1s --quiet --
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"timeout"* ]]
+}
