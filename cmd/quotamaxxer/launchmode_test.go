@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestNeedsProxy(t *testing.T) {
 	tests := []struct {
@@ -31,4 +36,57 @@ func TestNeedsProxy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStatuslineConfigured(t *testing.T) {
+	write := func(t *testing.T, path, command string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(map[string]any{"statusLine": map[string]string{"type": "command", "command": command}})
+		if err := os.WriteFile(path, b, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("nothing configured", func(t *testing.T) {
+		t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+		if statuslineConfigured(t.TempDir()) {
+			t.Error("want false")
+		}
+	})
+	t.Run("unrelated user statusline", func(t *testing.T) {
+		cfg := t.TempDir()
+		t.Setenv("CLAUDE_CONFIG_DIR", cfg)
+		write(t, filepath.Join(cfg, "settings.json"), "echo hello")
+		if statuslineConfigured(t.TempDir()) {
+			t.Error("want false")
+		}
+	})
+	t.Run("user settings with persist-only", func(t *testing.T) {
+		cfg := t.TempDir()
+		t.Setenv("CLAUDE_CONFIG_DIR", cfg)
+		write(t, filepath.Join(cfg, "settings.json"),
+			`input=$(cat); printf '%s' "$input" | ~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline --persist-only; echo hi`)
+		if !statuslineConfigured(t.TempDir()) {
+			t.Error("want true")
+		}
+	})
+	t.Run("project local settings", func(t *testing.T) {
+		t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+		proj := t.TempDir()
+		write(t, filepath.Join(proj, ".claude", "settings.local.json"), "quotamaxxer statusline")
+		if !statuslineConfigured(proj) {
+			t.Error("want true")
+		}
+	})
+	t.Run("unparseable settings", func(t *testing.T) {
+		cfg := t.TempDir()
+		t.Setenv("CLAUDE_CONFIG_DIR", cfg)
+		os.WriteFile(filepath.Join(cfg, "settings.json"), []byte("{not json"), 0644)
+		if statuslineConfigured(t.TempDir()) {
+			t.Error("want false")
+		}
+	})
 }

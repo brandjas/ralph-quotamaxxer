@@ -180,3 +180,38 @@ SH
     [ "$status" -eq 0 ]
     [[ "$output" == *"AGENTVIEW=[]"* ]]
 }
+
+@test "orchestrator: hints when statusline persistence is not configured" {
+    command -v script >/dev/null || skip "script(1) not available"
+    make_env_child
+    local cfg proj
+    cfg="$(mktemp -d)"; proj="$(mktemp -d)"
+    run env CLAUDE_CONFIG_DIR="$cfg" timeout 20 script -qec "cd $proj && $QM_BIN --claude-command $CHILD --" /dev/null </dev/null
+    rm -rf "$cfg" "$proj"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"statusline persistence is not configured"* ]]
+}
+
+@test "orchestrator: no statusline hint when configured or --quiet" {
+    command -v script >/dev/null || skip "script(1) not available"
+    make_env_child
+    local cfg proj
+    cfg="$(mktemp -d)"; proj="$(mktemp -d)"
+    run env CLAUDE_CONFIG_DIR="$cfg" timeout 20 script -qec "cd $proj && $QM_BIN --quiet --claude-command $CHILD --" /dev/null </dev/null
+    [[ "$output" != *"statusline persistence"* ]]
+    echo '{"statusLine":{"type":"command","command":"quotamaxxer statusline"}}' > "$cfg/settings.json"
+    run env CLAUDE_CONFIG_DIR="$cfg" timeout 20 script -qec "cd $proj && $QM_BIN --claude-command $CHILD --" /dev/null </dev/null
+    rm -rf "$cfg" "$proj"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"statusline persistence"* ]]
+}
+
+@test "orchestrator: no statusline hint for headless runs" {
+    make_env_child
+    local cfg
+    cfg="$(mktemp -d)"
+    run env CLAUDE_CONFIG_DIR="$cfg" "$QM_BIN" --claude-command "$CHILD" -- -p hello </dev/null
+    rm -rf "$cfg"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"statusline persistence"* ]]
+}
