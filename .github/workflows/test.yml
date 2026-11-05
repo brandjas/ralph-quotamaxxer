@@ -13,7 +13,22 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: cmd/quotamaxxer/go.mod
-      - name: Install bats
-        run: sudo apt-get install -y bats
-      - name: Run tests
+      - name: Check formatting
+        working-directory: cmd/quotamaxxer
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Vet
+        working-directory: cmd/quotamaxxer
+        run: go vet ./...
+      - name: Go tests
+        working-directory: cmd/quotamaxxer
+        run: go test -race ./...
+      - name: Install bats and jq
+        run: sudo apt-get update && sudo apt-get install -y bats jq
+      - name: Run bats tests
         run: bats test/

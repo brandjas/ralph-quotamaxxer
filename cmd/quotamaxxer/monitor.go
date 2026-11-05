@@ -56,10 +56,10 @@ func (t *flexTimestamp) UnmarshalJSON(data []byte) error {
 // historyRecord is a union struct for parsing both proxy and statusline JSONL records.
 type historyRecord struct {
 	Source     string        `json:"source"`
-	Epoch     int64         `json:"epoch"`
-	FiveHour  *windowData   `json:"five_hour"`
-	SevenDay  *windowData   `json:"seven_day"`
-	Timestamp flexTimestamp `json:"timestamp"`
+	Epoch      int64         `json:"epoch"`
+	FiveHour   *windowData   `json:"five_hour"`
+	SevenDay   *windowData   `json:"seven_day"`
+	Timestamp  flexTimestamp `json:"timestamp"`
 	RateLimits struct {
 		FiveHour struct {
 			UsedPct float64 `json:"used_pct"`
