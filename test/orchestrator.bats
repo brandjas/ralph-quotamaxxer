@@ -80,6 +80,15 @@ load helpers
     [ "$status" -eq 1 ]
 }
 
+@test "orchestrator: interactive child can control the TTY" {
+    # Under a pty, the child must be in the terminal's foreground process
+    # group; otherwise tcsetattr (as done by stty, or claude entering raw
+    # mode) raises SIGTTOU and the child is stopped forever.
+    command -v script >/dev/null || skip "script(1) not available"
+    run timeout 20 script -qec "$QM_BIN --claude-command stty -- sane" /dev/null </dev/null
+    [ "$status" -eq 0 ]
+}
+
 @test "orchestrator: child inherits stdin" {
     # Pipe input to child via stdin.
     run bash -c 'echo "from stdin" | "$1" --claude-command cat --' -- "$QM_BIN"

@@ -52,11 +52,31 @@ func runOrchestrator(args []string) int {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), "ANTHROPIC_BASE_URL=http://"+addr)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Interactive: claude must stay in our process group, which is the
+	// terminal's foreground group. In its own group it would be stopped by
+	// SIGTTIN/SIGTTOU as soon as it touched the TTY. Being in our group also
+	// means terminal-generated signals (Ctrl-C, Ctrl-\, Ctrl-Z) reach it
+	// directly, so we must not forward those or claude would see them twice.
+	//
+	// Headless: put claude in its own process group so --run-timeout and
+	// forwarded signals reach its whole process tree (tools, MCP servers).
+	interactive := isTerminal()
+	if !interactive {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
 
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "quotamaxxer: failed to start claude: %v\n", err)
 		return 1
+	}
+
+	signalChild := func(sig syscall.Signal) {
+		if interactive {
+			syscall.Kill(cmd.Process.Pid, sig)
+		} else {
+			syscall.Kill(-cmd.Process.Pid, sig)
+		}
 	}
 
 	// Run timeout.
@@ -65,17 +85,22 @@ func runOrchestrator(args []string) int {
 		timer := time.AfterFunc(cfg.RunTimeout, func() {
 			timedOut.Store(true)
 			fmt.Fprintf(os.Stderr, "quotamaxxer: --run-timeout (%s) exceeded, killing claude\n", cfg.RunTimeout)
-			syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+			signalChild(syscall.SIGTERM)
 		})
 		defer timer.Stop()
 	}
 
-	// Forward signals to claude's process group.
+	// Catch signals so quotamaxxer outlives claude (and can report its exit
+	// code), forwarding the ones claude wouldn't otherwise receive.
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT)
 	go func() {
 		for sig := range sigCh {
-			syscall.Kill(-cmd.Process.Pid, sig.(syscall.Signal))
+			s := sig.(syscall.Signal)
+			if interactive && (s == syscall.SIGINT || s == syscall.SIGQUIT) {
+				continue // already delivered to claude by the terminal
+			}
+			signalChild(s)
 		}
 	}()
 
