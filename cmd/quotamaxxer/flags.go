@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -19,9 +21,11 @@ type orchestratorConfig struct {
 	ClaudeArgs  []string
 }
 
-// parseOrchestratorArgs parses quotamaxxer flags from args. Everything after
-// "--" (handled by flag.FlagSet) becomes ClaudeArgs. If no flags are
-// recognized, all args pass through to claude.
+// parseOrchestratorArgs parses leading quotamaxxer flags from args. Parsing
+// stops at the first argument that isn't a quotamaxxer flag (or its value);
+// that argument and everything after it become ClaudeArgs verbatim. An
+// explicit "--" also ends quotamaxxer flags and is itself dropped, so
+// "quotamaxxer -- -- x" passes "-- x" to claude.
 func parseOrchestratorArgs(args []string) (orchestratorConfig, error) {
 	fs := flag.NewFlagSet("quotamaxxer", flag.ContinueOnError)
 
@@ -39,11 +43,12 @@ func parseOrchestratorArgs(args []string) (orchestratorConfig, error) {
 	fs.BoolVar(&help, "help", false, "")
 	fs.BoolVar(&help, "h", false, "")
 
-	// Suppress default usage — we have our own help text.
-	fs.SetOutput(os.Stderr)
+	// Errors are returned (and printed by the caller); we have our own help text.
+	fs.SetOutput(io.Discard)
 	fs.Usage = func() {}
 
-	if err := fs.Parse(args); err != nil {
+	split := splitOwnFlags(fs, args)
+	if err := fs.Parse(args[:split]); err != nil {
 		return cfg, fmt.Errorf("%v\nRun 'quotamaxxer --help' for usage.", err)
 	}
 
@@ -56,10 +61,44 @@ func parseOrchestratorArgs(args []string) (orchestratorConfig, error) {
 		return cfg, err
 	}
 
-	// Everything after "--" becomes claude args.
-	cfg.ClaudeArgs = fs.Args()
+	rest := args[split:]
+	if len(rest) > 0 && rest[0] == "--" {
+		rest = rest[1:]
+	}
+	cfg.ClaudeArgs = rest
 
 	return cfg, nil
+}
+
+// splitOwnFlags returns the index of the first argument that does not belong
+// to a flag defined in fs. Arguments before that index are quotamaxxer flags
+// (and their values); the argument at that index is either "--" or the first
+// argument destined for claude.
+func splitOwnFlags(fs *flag.FlagSet, args []string) int {
+	i := 0
+	for i < len(args) {
+		arg := args[i]
+		if arg == "--" || len(arg) < 2 || arg[0] != '-' {
+			return i
+		}
+		name := strings.TrimLeft(arg, "-")
+		hasValue := false
+		if eq := strings.IndexByte(name, '='); eq >= 0 {
+			name, hasValue = name[:eq], true
+		}
+		f := fs.Lookup(name)
+		if f == nil {
+			return i
+		}
+		i++
+		if bf, ok := f.Value.(interface{ IsBoolFlag() bool }); ok && bf.IsBoolFlag() {
+			continue
+		}
+		if !hasValue && i < len(args) {
+			i++ // consume the flag's value
+		}
+	}
+	return i
 }
 
 func validateSource(source string) error {
