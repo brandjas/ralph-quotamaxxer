@@ -103,7 +103,7 @@ echo "🚀 quota headroom available, let's go"
 
 
 <details>
-<summary><b>Flags</b> (before <code>--</code>, or after <code>guard</code>)</summary>
+<summary><b>Flags</b> (before any claude arguments, or after <code>guard</code>)</summary>
 
 | Flag | Description |
 |---|---|
@@ -115,7 +115,9 @@ echo "🚀 quota headroom available, let's go"
 | `--quiet` | Suppress waiting output |
 | `--help` | Show help |
 
-The `guard` subcommand requires at least one `--threshold-*` flag. All arguments after `--` go directly to `claude`.
+The `guard` subcommand requires at least one `--threshold-*` flag.
+
+quotamaxxer flags must come first. The first argument quotamaxxer doesn't recognize, and everything after it, goes to `claude` unchanged. Use `--` to separate explicitly, e.g. when a claude argument would collide with a quotamaxxer flag name (`quotamaxxer -- --help` shows claude's help).
 
 </details>
 

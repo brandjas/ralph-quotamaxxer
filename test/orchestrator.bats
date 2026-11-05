@@ -48,10 +48,17 @@ load helpers
     [[ "$output" == "-- hello" ]]
 }
 
-@test "orchestrator: unknown flag before -- exits 1" {
-    run "$QM_BIN" --bogus-flag --
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"not defined"* ]]
+@test "orchestrator: unknown flags pass through to child without --" {
+    run "$QM_BIN" --claude-command echo -p hello
+    [ "$status" -eq 0 ]
+    [[ "$output" == "-p hello" ]]
+}
+
+@test "orchestrator: own flags then claude flags without --" {
+    write_proxy_json 0.1 0.1
+    run "$QM_BIN" --claude-command echo --threshold-5h 0.8 --data-dir "$DATA_DIR" --quiet -p hello
+    [ "$status" -eq 0 ]
+    [[ "$output" == "-p hello" ]]
 }
 
 @test "orchestrator: --threshold-5h without value exits 1" {

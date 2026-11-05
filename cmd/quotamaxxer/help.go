@@ -11,7 +11,8 @@ Usage:
   quotamaxxer proxy                          Run standalone proxy server
   quotamaxxer statusline                     Claude Code statusline (reads JSON from stdin)
 
-Flags (before --):
+Flags (must come first; the first unrecognized argument and everything after
+it go to claude, or use -- to separate explicitly):
   --threshold-5h <ratio>   Wait until 5h burn ratio drops below this (e.g. 0.8)
   --threshold-7d <ratio>   Wait until 7d burn ratio drops below this (e.g. 0.9)
   --wait-timeout <dur>     Max guard wait time (e.g. 30m, 1h). 0 = forever (default)
@@ -36,7 +37,7 @@ which file(s) are consulted. The most recent by timestamp is used.
 
 Examples:
   quotamaxxer -p "hello"                                    # proxy + claude, no guard
-  quotamaxxer --threshold-5h 0.8 -- -p "hello"              # guard, then proxy + claude
+  quotamaxxer --threshold-5h 0.8 -p "hello"                 # guard, then proxy + claude
   quotamaxxer --run-timeout 2h -- -p "hello"                 # kill claude after 2h
   quotamaxxer guard --threshold-5h 0.8 --wait-timeout 30m   # standalone guard
   quotamaxxer -- -- -p "hello"                               # pass literal -- to claude`

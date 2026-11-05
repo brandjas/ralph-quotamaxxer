@@ -84,7 +84,7 @@ echo "  $DEST_DIR/bin/quotamaxxer          # interactive"
 echo "  $DEST_DIR/bin/quotamaxxer -p '...' # headless"
 echo ""
 echo "Or alias it:"
-echo "  alias claude=$DEST_DIR/bin/quotamaxxer"
+echo "  alias claude='$DEST_DIR/bin/quotamaxxer --'"
 echo ""
 echo "To enable the statusline, add this to ~/.claude/settings.json:"
 echo '  "statusLine": { "type": "command", "command": "~/.claude/ralph-quotamaxxer/bin/quotamaxxer statusline" }'
