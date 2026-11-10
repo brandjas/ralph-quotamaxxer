@@ -69,6 +69,8 @@ func main() {
 		case "statusline":
 			runStatusline(os.Args[2:])
 			return
+		case "daemon":
+			os.Exit(runDaemonCommand(os.Args[2:]))
 		case "help", "--help", "-h":
 			runHelp()
 			return

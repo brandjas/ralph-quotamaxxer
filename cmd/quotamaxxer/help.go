@@ -9,6 +9,7 @@ Usage:
   quotamaxxer guard [flags]                  Wait for rate limits, then exit
   quotamaxxer monitor [flags]                Live TUI dashboard for rate limits
   quotamaxxer proxy                          Run standalone proxy server
+  quotamaxxer daemon <start|stop|status>     Manage the optional persistent proxy
   quotamaxxer statusline [--persist-only]    Claude Code statusline (reads JSON from stdin);
                                              --persist-only records usage without printing
 
@@ -23,6 +24,7 @@ it go to claude, or use -- to separate explicitly):
   --data-dir <path>        Data directory (default: $QUOTAMAXXER_DATA_DIR, else
                            ~/.claude/ralph-quotamaxxer/data)
   --claude-command <cmd>   Command to run instead of claude (default: claude)
+  --persistent             Route this launch through the persistent proxy (see below)
   --quiet                  Suppress guard output and the statusline setup hint
   --help                   Show this help
 
@@ -39,6 +41,12 @@ proxy that records rate limit headers. Interactive sessions and background
 agents are recorded by the statusline instead; configure it to run
 'quotamaxxer statusline' (or add 'quotamaxxer statusline --persist-only' to
 your own statusline). See the README's Statusline section.
+
+Persistent proxy (optional): with QUOTAMAXXER_PERSISTENT=1 or --persistent,
+every session, including interactive ones and background agents, goes
+through a detached proxy on 127.0.0.1:28429 (QUOTAMAXXER_PERSISTENT_PORT)
+that is started on demand and keeps running. If it can't be used, quotamaxxer
+warns and falls back to the behaviour above. See the README.
 
 The guard reads usage-proxy.json (written by the proxy) and/or
 usage-statusline.json (written by the statusline). Use --source to restrict

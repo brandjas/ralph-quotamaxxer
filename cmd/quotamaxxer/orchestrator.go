@@ -51,9 +51,33 @@ func runOrchestrator(args []string) int {
 	// write where this run's guard reads, including with --data-dir.
 	cmd.Env = append(os.Environ(), "QUOTAMAXXER_DATA_DIR="+dataDir)
 
+	// Opt-in persistent proxy: every kind of session goes through a detached
+	// daemon on a fixed port, which outlives this run (see persistent.go).
+	// If it can't be used, fall back to the default behaviour below.
+	persistent := false
+	if cfg.Persistent {
+		port := persistentPort()
+		if inherited := os.Getenv("ANTHROPIC_BASE_URL"); isPersistentProxyURL(inherited, port) {
+			// Launched from inside a proxied session: already routed.
+			persistent = true
+		} else if key, err := ensurePersistentProxy(dataDir, port); err != nil {
+			fmt.Fprintf(os.Stderr, "quotamaxxer: persistent proxy unavailable, using the default tracking instead: %v\n", err)
+		} else {
+			persistent = true
+			cmd.Env = append(cmd.Env, "ANTHROPIC_BASE_URL="+persistentBaseURL(port, key, upstream))
+		}
+	}
+	if persistent {
+		// Marks the session as depending on the daemon, so its statusline
+		// restarts the daemon if it dies.
+		cmd.Env = append(cmd.Env, persistentSessionEnv+"="+persistentPort())
+	}
+
 	// Headless runs record usage through the in-process proxy. UI sessions
 	// (interactive, --bg) rely on the statusline instead; see needsProxy.
-	if needsProxy(cfg.ClaudeArgs, isTerminal(), isStdoutTerminal()) {
+	if persistent {
+		// Recorded by the persistent proxy.
+	} else if needsProxy(cfg.ClaudeArgs, isTerminal(), isStdoutTerminal()) {
 		addr, shutdownProxy, err := startProxyServer(dataDir, upstream, "0")
 		if err != nil {
 			log.Printf("quotamaxxer: failed to start proxy: %v", err)
