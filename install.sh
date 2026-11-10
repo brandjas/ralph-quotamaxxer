@@ -8,7 +8,8 @@ DEST_DIR="$HOME/.claude/ralph-quotamaxxer"
 # Build binary.
 echo "Building quotamaxxer..."
 mkdir -p "$DEST_DIR/bin" "$DEST_DIR/data"
-(cd "$REPO_DIR/cmd/quotamaxxer" && go build -o "$DEST_DIR/bin/quotamaxxer" .)
+# CGO_ENABLED=0 gives a static binary that runs on musl (Alpine) and old glibc.
+(cd "$REPO_DIR/cmd/quotamaxxer" && CGO_ENABLED=0 go build -o "$DEST_DIR/bin/quotamaxxer" .)
 echo "Installed to $DEST_DIR/bin/quotamaxxer"
 echo ""
 echo "Interactive sessions and background agents are tracked via the statusline."
