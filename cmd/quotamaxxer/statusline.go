@@ -171,6 +171,11 @@ func runStatusline(args []string) {
 	if !*persistOnly {
 		fmt.Println(line)
 	}
+
+	// After the output, so a slow start can't delay the statusline.
+	if port := os.Getenv(persistentSessionEnv); port != "" {
+		revivePersistentProxy(dataDir, port)
+	}
 }
 
 // persistStatuslineData writes the snapshot and history record. Absent

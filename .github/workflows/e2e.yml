@@ -1,0 +1,41 @@
+name: E2E
+
+# Real Claude Code + quotamaxxer in containers (test/e2e/run.sh).
+#
+# The fake tier needs no credentials. The live tier makes a few dozen tiny
+# Haiku calls with the CLAUDE_CODE_OAUTH_TOKEN secret (from `claude
+# setup-token`) and is skipped when the secret is unavailable, which includes
+# pull requests from forks: GitHub does not pass secrets to those.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["alpine:latest", "debian:trixie-slim", "ubuntu:20.04"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cmd/quotamaxxer/go.mod
+      - name: Fake tier (no credentials, no network)
+        run: test/e2e/run.sh --tier fake --image "${{ matrix.image }}"
+      - name: Live tier (tiny Haiku prompts)
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: test/e2e/run.sh --tier live --image "${{ matrix.image }}"

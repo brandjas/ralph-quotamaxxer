@@ -72,8 +72,12 @@ mkdir -p "$DEST_DIR/bin" "$DEST_DIR/data"
 # Download binary.
 BINARY_URL="https://github.com/$REPO/releases/download/$VERSION/quotamaxxer-$PLATFORM"
 echo "Downloading binary..."
-download "$BINARY_URL" "$DEST_DIR/bin/quotamaxxer"
-chmod +x "$DEST_DIR/bin/quotamaxxer"
+# Download next to the target and rename into place: writing over the binary
+# directly fails ("text file busy") while it is running, e.g. as a statusline
+# or as the persistent proxy.
+download "$BINARY_URL" "$DEST_DIR/bin/quotamaxxer.new"
+chmod +x "$DEST_DIR/bin/quotamaxxer.new"
+mv -f "$DEST_DIR/bin/quotamaxxer.new" "$DEST_DIR/bin/quotamaxxer"
 
 
 echo ""

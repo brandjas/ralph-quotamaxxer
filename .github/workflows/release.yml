@@ -31,6 +31,9 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          # Static binaries: without this the native linux/amd64 build links
+          # against the runner's glibc and fails on musl and older distros.
+          CGO_ENABLED: "0"
         run: |
           cd cmd/quotamaxxer
           go build -o ../../quotamaxxer-${{ matrix.goos }}-${{ matrix.goarch }} .

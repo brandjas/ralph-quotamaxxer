@@ -16,6 +16,7 @@ type orchestratorConfig struct {
 	RunTimeout  time.Duration
 	Source      string
 	Quiet       bool
+	Persistent  bool
 	DataDir     string
 	ClaudeCmd   string
 	ClaudeArgs  []string
@@ -36,6 +37,7 @@ func parseOrchestratorArgs(args []string) (orchestratorConfig, error) {
 	fs.DurationVar(&cfg.RunTimeout, "run-timeout", 0, "")
 	fs.StringVar(&cfg.Source, "source", "both", "")
 	fs.BoolVar(&cfg.Quiet, "quiet", false, "")
+	fs.BoolVar(&cfg.Persistent, "persistent", persistentEnabled(), "")
 	fs.StringVar(&cfg.DataDir, "data-dir", resolveDataDir(), "")
 	fs.StringVar(&cfg.ClaudeCmd, "claude-command", "claude", "")
 
